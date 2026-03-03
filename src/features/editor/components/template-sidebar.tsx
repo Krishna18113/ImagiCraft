@@ -1,10 +1,7 @@
 import Image from "next/image";
-import { AlertTriangle, Loader, Crown } from "lucide-react";
-
-import { usePaywall } from "@/features/subscriptions/hooks/use-paywall";
-
-import { 
-  ActiveTool, 
+import { AlertTriangle, Loader } from "lucide-react";
+import {
+  ActiveTool,
   Editor,
 } from "@/features/editor/types";
 import { ToolSidebarClose } from "@/features/editor/components/tool-sidebar-close";
@@ -27,8 +24,6 @@ export const TemplateSidebar = ({
   activeTool,
   onChangeActiveTool,
 }: TemplateSidebarProps) => {
-  const { shouldBlock, triggerPaywall } = usePaywall();
-
   const [ConfirmDialog, confirm] = useConfirm(
     "Are you sure?",
     "You are about to replace the current project with this template."
@@ -44,11 +39,6 @@ export const TemplateSidebar = ({
   };
 
   const onClick = async (template: ResponseType["data"][0]) => {
-    if (template.isPro && shouldBlock) {
-      triggerPaywall();
-      return;
-    }
-
     const ok = await confirm();
 
     if (ok) {
@@ -87,7 +77,7 @@ export const TemplateSidebar = ({
             {data && data.map((template) => {
               return (
                 <button
-                  style={{ 
+                  style={{
                     aspectRatio: `${template.width}/${template.height}`
                   }}
                   onClick={() => onClick(template)}
@@ -100,11 +90,7 @@ export const TemplateSidebar = ({
                     alt={template.name || "Template"}
                     className="object-cover"
                   />
-                  {template.isPro && (
-                    <div className="absolute top-2 right-2 size-8 items-center flex justify-center bg-black/50 rounded-full">
-                      <Crown className="size-4 fill-yellow-500 text-yellow-500" />
-                    </div>
-                  )}
+
                   <div
                     className="opacity-0 group-hover:opacity-100 absolute left-0 bottom-0 w-full text-[10px] truncate text-white p-1 bg-black/50 text-left"
                   >

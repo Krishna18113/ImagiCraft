@@ -16,17 +16,52 @@ const app = new Hono()
       }),
     ),
     async (c) => {
-      const { image } = c.req.valid("json");
+      try {
+        const { image } = c.req.valid("json");
+        const base64Data = image.replace(/^data:image\/[a-zA-Z0-9+\.-]+;base64,/, "");
 
-      const input = {
-        image: image
-      };
-    
-      const output: unknown = await replicate.run("cjwbw/rembg:fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003", { input });
+        // Convert base64 to Blob instead of Buffer for Edge compatibility
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const imageBlob = new Blob([byteArray], { type: "image/png" });
 
-      const res = output as string;
+        const formData = new FormData();
+        formData.append("image_file", imageBlob, "image.png");
+        formData.append("size", "auto");
 
-      return c.json({ data: res });
+        const response = await fetch(
+          "https://api.remove.bg/v1.0/removebg",
+          {
+            headers: {
+              "X-Api-Key": process.env.REMOVE_BG_API_KEY || "",
+            },
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Remove.bg API Error Details:", response.status, errorText);
+          throw new Error(`Remove.bg API Error: ${response.status} - ${errorText}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString("base64");
+        const dataUrl = `data:image/png;base64,${base64}`;
+
+        return c.json({ data: dataUrl });
+      } catch (error: any) {
+        console.error("Hugging Face API Error:", error.message || error);
+        return c.json(
+          { error: error.message || "Failed to remove background." },
+          500
+        );
+      }
     },
   )
   .post(
@@ -41,22 +76,36 @@ const app = new Hono()
     async (c) => {
       const { prompt } = c.req.valid("json");
 
-      const input = {
-        cfg: 3.5,
-        steps: 28,
-        prompt: prompt,
-        aspect_ratio: "3:2",
-        output_format: "webp",
-        output_quality: 90,
-        negative_prompt: "",
-        prompt_strength: 0.85
-      };
-      
-      const output = await replicate.run("stability-ai/stable-diffusion-3", { input });
-      
-      const res = output as Array<string>;
+      try {
+        const response = await fetch(
+          "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+            body: JSON.stringify({ inputs: prompt }),
+          }
+        );
 
-      return c.json({ data: res[0] });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HF API Error: ${response.status} - ${errorText}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        const dataUrl = `data:image/jpeg;base64,${base64}`;
+
+        return c.json({ data: dataUrl });
+      } catch (error: any) {
+        console.error("Hugging Face API Error:", error.message || error);
+        return c.json(
+          { error: error.message || "Failed to generate image." },
+          500
+        );
+      }
     },
   );
 
