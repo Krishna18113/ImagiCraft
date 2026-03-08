@@ -3,12 +3,12 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { 
-  AlertTriangle, 
-  CopyIcon, 
-  FileIcon, 
-  Loader, 
-  MoreHorizontal, 
+import {
+  AlertTriangle,
+  CopyIcon,
+  FileIcon,
+  Loader,
+  MoreHorizontal,
   Search,
   Trash
 } from "lucide-react";
@@ -23,7 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
+import {
   Table,
   TableRow,
   TableBody,
@@ -64,8 +64,8 @@ export const ProjectsSection = () => {
   if (status === "pending") {
     return (
       <div className="space-y-4">
-        <h3 className="font-semibold text-lg">
-          Recent projects
+        <h3 className="font-semibold text-2xl text-gray-800 mb-4">
+          Recent designs
         </h3>
         <div className="flex flex-col gap-y-4 items-center justify-center h-32">
           <Loader className="size-6 animate-spin text-muted-foreground" />
@@ -77,8 +77,8 @@ export const ProjectsSection = () => {
   if (status === "error") {
     return (
       <div className="space-y-4">
-        <h3 className="font-semibold text-lg">
-          Recent projects
+        <h3 className="font-semibold text-2xl text-gray-800 mb-4">
+          Recent designs
         </h3>
         <div className="flex flex-col gap-y-4 items-center justify-center h-32">
           <AlertTriangle className="size-6 text-muted-foreground" />
@@ -96,8 +96,8 @@ export const ProjectsSection = () => {
   ) {
     return (
       <div className="space-y-4">
-        <h3 className="font-semibold text-lg">
-          Recent projects
+        <h3 className="font-semibold text-2xl text-gray-800 mb-4">
+          Recent designs
         </h3>
         <div className="flex flex-col gap-y-4 items-center justify-center h-32">
           <Search className="size-6 text-muted-foreground" />
@@ -110,10 +110,10 @@ export const ProjectsSection = () => {
   }
 
   return (
-    <div className="space-y-4"> 
+    <div className="space-y-4">
       <ConfirmDialog />
-      <h3 className="font-semibold text-lg">
-        Recent projects
+      <h3 className="font-semibold text-2xl text-gray-800 mb-4">
+        Recent designs
       </h3>
       <Table>
         <TableBody>

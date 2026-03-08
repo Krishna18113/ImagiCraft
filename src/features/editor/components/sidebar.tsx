@@ -1,6 +1,6 @@
 "use client";
 
-import { 
+import {
   LayoutTemplate,
   ImageIcon,
   Pencil,
@@ -8,6 +8,8 @@ import {
   Shapes,
   Sparkles,
   Type,
+  UploadCloud,
+  FolderOpen
 } from "lucide-react";
 
 import { ActiveTool } from "@/features/editor/types";
@@ -23,7 +25,7 @@ export const Sidebar = ({
   onChangeActiveTool,
 }: SidebarProps) => {
   return (
-    <aside className="bg-white flex flex-col w-[100px] h-full border-r overflow-y-auto">
+    <aside className="bg-white flex flex-col w-[100px] h-full border-r overflow-y-auto z-[50]">
       <ul className="flex flex-col">
         <SidebarItem
           icon={LayoutTemplate}
@@ -32,10 +34,10 @@ export const Sidebar = ({
           onClick={() => onChangeActiveTool("templates")}
         />
         <SidebarItem
-          icon={ImageIcon}
-          label="Image"
-          isActive={activeTool === "images"}
-          onClick={() => onChangeActiveTool("images")}
+          icon={Shapes}
+          label="Elements"
+          isActive={activeTool === "shapes"}
+          onClick={() => onChangeActiveTool("shapes")}
         />
         <SidebarItem
           icon={Type}
@@ -44,10 +46,16 @@ export const Sidebar = ({
           onClick={() => onChangeActiveTool("text")}
         />
         <SidebarItem
-          icon={Shapes}
-          label="Shapes"
-          isActive={activeTool === "shapes"}
-          onClick={() => onChangeActiveTool("shapes")}
+          icon={ImageIcon}
+          label="Brand"
+          isActive={activeTool === "images"} // Mocking Brand with images for MVP
+          onClick={() => onChangeActiveTool("images")}
+        />
+        <SidebarItem
+          icon={UploadCloud}
+          label="Uploads"
+          isActive={activeTool === "images"} // Re-using image uploader for now
+          onClick={() => onChangeActiveTool("images")}
         />
         <SidebarItem
           icon={Pencil}
@@ -56,18 +64,19 @@ export const Sidebar = ({
           onClick={() => onChangeActiveTool("draw")}
         />
         <SidebarItem
-          icon={Sparkles}
-          label="AI"
-          isActive={activeTool === "ai"}
-          onClick={() => onChangeActiveTool("ai")}
+          icon={FolderOpen}
+          label="Projects"
+          isActive={activeTool === "settings"} // Placeholder
+          onClick={() => onChangeActiveTool("settings")}
         />
         <SidebarItem
-          icon={Settings}
-          label="Settings"
-          isActive={activeTool === "settings"}
-          onClick={() => onChangeActiveTool("settings")}
+          icon={Sparkles}
+          label="Apps"
+          isActive={activeTool === "ai"}
+          onClick={() => onChangeActiveTool("ai")}
         />
       </ul>
     </aside>
   );
 };
+

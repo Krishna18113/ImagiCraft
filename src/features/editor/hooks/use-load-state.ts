@@ -9,6 +9,7 @@ interface UseLoadStateProps {
   initialState: React.MutableRefObject<string | undefined>;
   canvasHistory: React.MutableRefObject<string[]>;
   setHistoryIndex: React.Dispatch<React.SetStateAction<number>>;
+  setPages: React.Dispatch<React.SetStateAction<string[]>>;
 };
 
 export const useLoadState = ({
@@ -17,14 +18,30 @@ export const useLoadState = ({
   initialState,
   canvasHistory,
   setHistoryIndex,
+  setPages,
 }: UseLoadStateProps) => {
   const initialized = useRef(false);
 
   useEffect(() => {
     if (!initialized.current && initialState?.current && canvas) {
-      const data = JSON.parse(initialState.current);
+      let parsed;
+      try {
+        parsed = JSON.parse(initialState.current);
+      } catch (e) {
+        // failed
+      }
 
-      canvas.loadFromJSON(data, () => {
+      let dataToLoad = parsed;
+      if (parsed && parsed.isMultiPage && parsed.pages && parsed.pages.length > 0) {
+        dataToLoad = JSON.parse(parsed.pages[0]);
+        setPages(parsed.pages);
+      } else if (initialState.current) {
+        setPages([initialState.current]);
+      }
+
+      const loadData = dataToLoad || {};
+
+      canvas.loadFromJSON(loadData, () => {
         const currentState = JSON.stringify(
           canvas.toJSON(JSON_KEYS),
         );
@@ -35,12 +52,10 @@ export const useLoadState = ({
       });
       initialized.current = true;
     }
-  }, 
-  [
-    canvas,
-    autoZoom,
-    initialState, // no need, this is a ref
-    canvasHistory, // no need, this is a ref
-    setHistoryIndex, // no need, this is a dispatch
-  ]);
+  },
+    [
+      canvas,
+      autoZoom,
+      setPages, // dispatch function
+    ]);
 };

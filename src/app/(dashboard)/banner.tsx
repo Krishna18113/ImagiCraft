@@ -1,61 +1,41 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2, Sparkles } from "lucide-react";
-
-import { useCreateProject } from "@/features/projects/api/use-create-project";
-
-import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { Search } from "lucide-react";
+import { CategoriesSection } from "./categories-section";
 
 export const Banner = () => {
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
-  const mutation = useCreateProject();
+  const [searchValue, setSearchValue] = useState("");
 
-  const onClick = () => {
-    setLoading(true);
-    mutation.mutate(
-      {
-        name: "Untitled project",
-        json: "",
-        width: 900,
-        height: 1200,
-      },
-      {
-        onSuccess: ({ data }) => {
-          router.push(`/editor/${data.id}`);
-        },
-      }
-    );
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Implementation for search, e.g., router.push(`/search?q=${searchValue}`)
   };
 
   return (
-    <div className="text-white aspect-[5/1] min-h-[248px] flex gap-x-6 p-6 items-center rounded-xl bg-gradient-to-r from-[#2e62cb] via-[#0073ff] to-[#3faff5]">
-      <div className="rounded-full size-28 items-center justify-center bg-white/50 hidden md:flex">
-        <div className="rounded-full size-20 flex items-center justify-center bg-white">
-          <Sparkles className="h-20 text-[#0073ff] fill-[#0073ff]" />
+    <div className="w-full pt-10 pb-6 flex flex-col items-center justify-center bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-2xl relative mb-6">
+      <h1 className="text-4xl md:text-5xl font-semibold text-indigo-700 mb-8 tracking-tight text-center">
+        What will you design today?
+      </h1>
+
+      <form
+        onSubmit={onSubmit}
+        className="w-full max-w-3xl px-4 mb-10"
+      >
+        <div className="relative flex items-center w-full h-14 rounded-full bg-white shadow-md hover:shadow-lg transition-shadow border border-gray-100 overflow-hidden">
+          <div className="pl-5 pr-3 text-gray-400">
+            <Search className="size-5" />
+          </div>
+          <input
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            placeholder="Search millions of templates"
+            className="flex-1 h-full outline-none text-base bg-transparent text-gray-800"
+          />
         </div>
-      </div>
-      <div className="flex flex-col gap-y-2">
-        <h1 className="text-xl md:text-3xl font-semibold">Visualize your ideas with The Canvas</h1>
-        <p className="text-xs md:text-sm mb-2">
-          Turn inspiration into design in no time. Simply upload an image and let AI do the rest.
-        </p>
-        <Button
-          disabled={mutation.isPending}
-          onClick={onClick}
-          variant="secondary"
-          className="w-[160px]"
-        >
-          Start creating
-          {loading ? (
-            <Loader2 className="size-4 ml-2 animate-spin" />
-          ) : (
-            <ArrowRight className="size-4 ml-2" />
-          )}
-        </Button>
-      </div>
+      </form>
+
+      <CategoriesSection />
     </div>
   );
 };

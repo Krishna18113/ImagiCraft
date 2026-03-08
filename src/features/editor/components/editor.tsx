@@ -7,8 +7,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ResponseType } from "@/features/projects/api/use-get-project";
 import { useUpdateProject } from "@/features/projects/api/use-update-project";
 
-import { 
-  ActiveTool, 
+import {
+  ActiveTool,
   selectionDependentTools
 } from "@/features/editor/types";
 import { Navbar } from "@/features/editor/components/navbar";
@@ -30,6 +30,7 @@ import { AiSidebar } from "@/features/editor/components/ai-sidebar";
 import { TemplateSidebar } from "@/features/editor/components/template-sidebar";
 import { RemoveBgSidebar } from "@/features/editor/components/remove-bg-sidebar";
 import { SettingsSidebar } from "@/features/editor/components/settings-sidebar";
+import { PresentModal } from "@/features/editor/components/present-modal";
 
 interface EditorProps {
   initialData: ResponseType["data"];
@@ -41,15 +42,15 @@ export const Editor = ({ initialData }: EditorProps) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSave = useCallback(
     debounce(
-      (values: { 
+      (values: {
         json: string,
         height: number,
         width: number,
       }) => {
         mutate(values);
-    },
-    500
-  ), [mutate]);
+      },
+      500
+    ), [mutate]);
 
   const [activeTool, setActiveTool] = useState<ActiveTool>("select");
 
@@ -79,7 +80,7 @@ export const Editor = ({ initialData }: EditorProps) => {
     if (tool === activeTool) {
       return setActiveTool("select");
     }
-    
+
     setActiveTool(tool);
   }, [activeTool, editor]);
 
@@ -104,6 +105,7 @@ export const Editor = ({ initialData }: EditorProps) => {
 
   return (
     <div className="h-full flex flex-col">
+      <PresentModal editor={editor} />
       <Navbar
         id={initialData.id}
         editor={editor}
@@ -192,7 +194,7 @@ export const Editor = ({ initialData }: EditorProps) => {
             onChangeActiveTool={onChangeActiveTool}
             key={JSON.stringify(editor?.canvas.getActiveObject())}
           />
-          <div className="flex-1 h-[calc(100%-124px)] bg-muted" ref={containerRef}>
+          <div className="flex-1 min-h-0 bg-muted" ref={containerRef}>
             <canvas ref={canvasRef} />
           </div>
           <Footer editor={editor} />

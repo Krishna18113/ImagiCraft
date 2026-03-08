@@ -69,8 +69,8 @@ export const TemplatesSection = () => {
 
   return (
     <div>
-      <h3 className="font-semibold text-lg">
-        Start from a template
+      <h3 className="font-semibold text-2xl text-gray-800 mb-6">
+        Explore templates
       </h3>
       <div className="grid grid-cols-2 md:grid-cols-4 mt-4 gap-4">
         {data?.map((template) => (

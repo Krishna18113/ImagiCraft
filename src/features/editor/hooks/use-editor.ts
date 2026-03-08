@@ -1,15 +1,15 @@
 import { fabric } from "fabric";
 import { useCallback, useState, useMemo, useRef } from "react";
 
-import { 
-  Editor, 
+import {
+  Editor,
   FILL_COLOR,
   STROKE_WIDTH,
   STROKE_COLOR,
   CIRCLE_OPTIONS,
   DIAMOND_OPTIONS,
   TRIANGLE_OPTIONS,
-  BuildEditorProps, 
+  BuildEditorProps,
   RECTANGLE_OPTIONS,
   EditorHookProps,
   STROKE_DASH_ARRAY,
@@ -20,9 +20,9 @@ import {
   JSON_KEYS,
 } from "@/features/editor/types";
 import { useHistory } from "@/features/editor/hooks/use-history";
-import { 
-  createFilter, 
-  downloadFile, 
+import {
+  createFilter,
+  downloadFile,
   isTextType,
   transformText
 } from "@/features/editor/utils";
@@ -54,6 +54,11 @@ const buildEditor = ({
   selectedObjects,
   strokeDashArray,
   setStrokeDashArray,
+  pages,
+  currentPageIndex,
+  addPage,
+  setPageIndex,
+  deletePage,
 }: BuildEditorProps): Editor => {
   const generateSaveOptions = () => {
     const { width, height, left, top } = getWorkspace() as fabric.Rect;
@@ -103,8 +108,20 @@ const buildEditor = ({
     const dataUrl = canvas.toJSON(JSON_KEYS);
 
     await transformText(dataUrl.objects);
+
+    const currentPages = [...pages];
+    if (currentPages.length === 0) {
+      currentPages.push(JSON.stringify(dataUrl));
+    } else {
+      currentPages[currentPageIndex] = JSON.stringify(dataUrl);
+    }
+    const payload = {
+      isMultiPage: true,
+      pages: currentPages,
+    };
+
     const fileString = `data:text/json;charset=utf-8,${encodeURIComponent(
-      JSON.stringify(dataUrl, null, "\t"),
+      JSON.stringify(payload, null, "\t"),
     )}`;
     downloadFile(fileString, "json");
   };
@@ -119,8 +136,8 @@ const buildEditor = ({
 
   const getWorkspace = () => {
     return canvas
-    .getObjects()
-    .find((object) => object.name === "clip");
+      .getObjects()
+      .find((object) => object.name === "clip");
   };
 
   const center = (object: fabric.Object) => {
@@ -386,7 +403,7 @@ const buildEditor = ({
       });
 
       canvas.renderAll();
-      
+
       const workspace = getWorkspace();
       workspace?.sendToBack();
     },
@@ -607,6 +624,11 @@ const buildEditor = ({
       return value;
     },
     selectedObjects,
+    pages,
+    currentPageIndex,
+    addPage,
+    setPageIndex,
+    deletePage,
   };
 };
 
@@ -631,19 +653,53 @@ export const useEditor = ({
   const [strokeWidth, setStrokeWidth] = useState(STROKE_WIDTH);
   const [strokeDashArray, setStrokeDashArray] = useState<number[]>(STROKE_DASH_ARRAY);
 
+  const [pages, setPages] = useState<string[]>([]);
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+
+  const isPaging = useRef(false);
+
+  const handleSave = useCallback(
+    (values: { json: string; height: number; width: number }) => {
+      if (isPaging.current) return;
+
+      setPages((currentPages) => {
+        const nextPages = [...currentPages];
+        if (nextPages.length === 0) {
+          nextPages.push(values.json);
+        } else {
+          nextPages[currentPageIndex] = values.json;
+        }
+
+        const payload = {
+          isMultiPage: true,
+          pages: nextPages,
+        };
+
+        saveCallback?.({
+          json: JSON.stringify(payload),
+          height: values.height,
+          width: values.width,
+        });
+
+        return nextPages;
+      });
+    },
+    [currentPageIndex, saveCallback]
+  );
+
   useWindowEvents();
 
-  const { 
-    save, 
-    canRedo, 
-    canUndo, 
-    undo, 
+  const {
+    save,
+    canRedo,
+    canUndo,
+    undo,
     redo,
     canvasHistory,
     setHistoryIndex,
-  } = useHistory({ 
+  } = useHistory({
     canvas,
-    saveCallback
+    saveCallback: handleSave
   });
 
   const { copy, paste } = useClipboard({ canvas });
@@ -675,7 +731,124 @@ export const useEditor = ({
     initialState,
     canvasHistory,
     setHistoryIndex,
+    setPages, // newly added parameter
   });
+
+  const setPageIndex = useCallback((index: number) => {
+    if (!canvas || index < 0 || index >= pages.length) return;
+
+    isPaging.current = true;
+    const currentState = canvas.toJSON(JSON_KEYS);
+
+    // Safely clone from closure. Any pending saves for currentPageIndex 
+    // are naturally overwritten by our fresh currentState extraction!
+    const nextPages = [...pages];
+    nextPages[currentPageIndex] = JSON.stringify(currentState);
+
+    const newPageJson = JSON.parse(nextPages[index]);
+
+    setPages(nextPages);
+
+    canvas.loadFromJSON(newPageJson, () => {
+      canvas.renderAll();
+      setCurrentPageIndex(index);
+      canvasHistory.current = [JSON.stringify(newPageJson)];
+      setHistoryIndex(0);
+      isPaging.current = false;
+    });
+
+    const payload = {
+      isMultiPage: true,
+      pages: nextPages,
+    };
+
+    const workspace = canvas.getObjects().find((obj) => obj.name === "clip");
+    const height = workspace?.height || 0;
+    const width = workspace?.width || 0;
+
+    saveCallback?.({
+      json: JSON.stringify(payload),
+      height,
+      width,
+    });
+  }, [canvas, pages, currentPageIndex, canvasHistory, setHistoryIndex, saveCallback]);
+
+  const addPage = useCallback(() => {
+    if (!canvas) return;
+    isPaging.current = true;
+
+    const currentState = canvas.toJSON(JSON_KEYS);
+    const emptyState = { ...currentState };
+    emptyState.objects = emptyState.objects.filter((obj: any) => obj.name === "clip");
+
+    const nextPages = [...pages];
+    nextPages[currentPageIndex] = JSON.stringify(currentState);
+    nextPages.push(JSON.stringify(emptyState));
+
+    const newIndex = nextPages.length - 1;
+
+    setPages(nextPages);
+
+    canvas.loadFromJSON(emptyState, () => {
+      canvas.renderAll();
+      setCurrentPageIndex(newIndex);
+      canvasHistory.current = [JSON.stringify(emptyState)];
+      setHistoryIndex(0);
+      isPaging.current = false;
+    });
+
+    const payload = {
+      isMultiPage: true,
+      pages: nextPages,
+    };
+
+    const workspace = canvas.getObjects().find((obj) => obj.name === "clip");
+    const height = workspace?.height || 0;
+    const width = workspace?.width || 0;
+
+    saveCallback?.({
+      json: JSON.stringify(payload),
+      height,
+      width,
+    });
+  }, [canvas, pages, currentPageIndex, canvasHistory, setHistoryIndex, saveCallback]);
+
+  const deletePage = useCallback(() => {
+    if (!canvas || pages.length <= 1) return;
+
+    isPaging.current = true;
+
+    const nextPages = [...pages];
+    nextPages.splice(currentPageIndex, 1);
+
+    const newIndex = Math.max(0, currentPageIndex - 1);
+    const newPageJson = JSON.parse(nextPages[newIndex]);
+
+    setPages(nextPages);
+
+    canvas.loadFromJSON(newPageJson, () => {
+      canvas.renderAll();
+      setCurrentPageIndex(newIndex);
+      canvasHistory.current = [JSON.stringify(newPageJson)];
+      setHistoryIndex(0);
+      isPaging.current = false;
+    });
+
+    const payload = {
+      isMultiPage: true,
+      pages: nextPages,
+    };
+
+    const workspace = canvas.getObjects().find((obj) => obj.name === "clip");
+    const height = workspace?.height || 0;
+    const width = workspace?.width || 0;
+
+    saveCallback?.({
+      json: JSON.stringify(payload),
+      height,
+      width,
+    });
+  }, [canvas, pages, currentPageIndex, canvasHistory, setHistoryIndex, saveCallback]);
 
   const editor = useMemo(() => {
     if (canvas) {
@@ -700,28 +873,38 @@ export const useEditor = ({
         setStrokeDashArray,
         fontFamily,
         setFontFamily,
+        pages,
+        currentPageIndex,
+        addPage,
+        setPageIndex,
+        deletePage,
       });
     }
 
     return undefined;
-  }, 
-  [
-    canRedo,
-    canUndo,
-    undo,
-    redo,
-    save,
-    autoZoom,
-    copy,
-    paste,
-    canvas,
-    fillColor,
-    strokeWidth,
-    strokeColor,
-    selectedObjects,
-    strokeDashArray,
-    fontFamily,
-  ]);
+  },
+    [
+      canRedo,
+      canUndo,
+      undo,
+      redo,
+      save,
+      autoZoom,
+      copy,
+      paste,
+      canvas,
+      fillColor,
+      strokeWidth,
+      strokeColor,
+      selectedObjects,
+      strokeDashArray,
+      fontFamily,
+      pages,
+      currentPageIndex,
+      addPage,
+      setPageIndex,
+      deletePage,
+    ]);
 
   const init = useCallback(
     ({
