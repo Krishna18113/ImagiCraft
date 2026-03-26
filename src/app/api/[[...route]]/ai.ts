@@ -3,7 +3,6 @@ import { Hono } from "hono";
 import { verifyAuth } from "@hono/auth-js";
 import { zValidator } from "@hono/zod-validator";
 
-import { replicate } from "@/lib/replicate";
 
 const app = new Hono()
   .post(
@@ -56,7 +55,7 @@ const app = new Hono()
 
         return c.json({ data: dataUrl });
       } catch (error: any) {
-        console.error("Hugging Face API Error:", error.message || error);
+        console.error("Remove.bg API Error:", error.message || error);
         return c.json(
           { error: error.message || "Failed to remove background." },
           500

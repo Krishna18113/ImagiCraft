@@ -32,8 +32,10 @@ export const AiSidebar = ({
 
 
     mutation.mutate({ prompt: value }, {
-      onSuccess: ({ data }) => {
-        editor?.addImage(data);
+      onSuccess: (response) => {
+        if ("data" in response) {
+          editor?.addImage(response.data);
+        }
       }
     });
   };
