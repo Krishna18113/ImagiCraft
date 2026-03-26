@@ -9,6 +9,7 @@ import { useUpdateProject } from "@/features/projects/api/use-update-project";
 
 import {
   ActiveTool,
+  ProjectType,
   selectionDependentTools
 } from "@/features/editor/types";
 import { Navbar } from "@/features/editor/components/navbar";
@@ -37,6 +38,7 @@ interface EditorProps {
 };
 
 export const Editor = ({ initialData }: EditorProps) => {
+  const projectType = (initialData.projectType as ProjectType) || "PRESENTATION";
   const { mutate } = useUpdateProject(initialData.id);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,6 +119,7 @@ export const Editor = ({ initialData }: EditorProps) => {
         <Sidebar
           activeTool={activeTool}
           onChangeActiveTool={onChangeActiveTool}
+          projectType={projectType}
         />
         <ShapeSidebar
           editor={editor}
@@ -198,7 +201,7 @@ export const Editor = ({ initialData }: EditorProps) => {
           <div className="flex-1 min-h-0 bg-muted" ref={containerRef}>
             <canvas ref={canvasRef} />
           </div>
-          <Footer editor={editor} />
+          <Footer editor={editor} projectType={projectType} />
         </main>
       </div>
     </div>
