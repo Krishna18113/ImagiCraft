@@ -109,6 +109,8 @@ export type ActiveTool =
   | "remove-bg"
   | "templates";
 
+export type ProjectType = "PRESENTATION" | "IMAGE" | "LOGO" | "POSTER";
+
 export const FILL_COLOR = "rgba(0,0,0,1)";
 export const STROKE_COLOR = "rgba(0,0,0,1)";
 export const STROKE_WIDTH = 2;

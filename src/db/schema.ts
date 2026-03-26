@@ -108,6 +108,7 @@ export const projects = pgTable("project", {
   thumbnailUrl: text("thumbnailUrl"),
   isTemplate: boolean("isTemplate"),
   isPro: boolean("isPro"),
+  projectType: text("projectType").notNull().default("PRESENTATION"),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull(),
   updatedAt: timestamp("updatedAt", { mode: "date" }).notNull(),
 });

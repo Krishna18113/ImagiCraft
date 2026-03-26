@@ -227,11 +227,12 @@ const app = new Hono()
         json: true,
         width: true,
         height: true,
+        projectType: true,
       }),
     ),
     async (c) => {
       const auth = c.get("authUser");
-      const { name, json, height, width } = c.req.valid("json");
+      const { name, json, height, width, projectType } = c.req.valid("json");
 
       if (!auth.token?.id) {
         return c.json({ error: "Unauthorized" }, 401);
@@ -244,6 +245,7 @@ const app = new Hono()
           json,
           width,
           height,
+          projectType: projectType || "PRESENTATION",
           userId: auth.token.id,
           createdAt: new Date(),
           updatedAt: new Date(),
