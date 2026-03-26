@@ -8,8 +8,6 @@ import {
   Shapes,
   Sparkles,
   Type,
-  UploadCloud,
-  FolderOpen
 } from "lucide-react";
 
 import { ActiveTool } from "@/features/editor/types";
@@ -47,14 +45,8 @@ export const Sidebar = ({
         />
         <SidebarItem
           icon={ImageIcon}
-          label="Brand"
-          isActive={activeTool === "images"} // Mocking Brand with images for MVP
-          onClick={() => onChangeActiveTool("images")}
-        />
-        <SidebarItem
-          icon={UploadCloud}
-          label="Uploads"
-          isActive={activeTool === "images"} // Re-using image uploader for now
+          label="Images"
+          isActive={activeTool === "images"}
           onClick={() => onChangeActiveTool("images")}
         />
         <SidebarItem
@@ -64,16 +56,16 @@ export const Sidebar = ({
           onClick={() => onChangeActiveTool("draw")}
         />
         <SidebarItem
-          icon={FolderOpen}
-          label="Projects"
-          isActive={activeTool === "settings"} // Placeholder
-          onClick={() => onChangeActiveTool("settings")}
-        />
-        <SidebarItem
           icon={Sparkles}
-          label="Apps"
+          label="AI"
           isActive={activeTool === "ai"}
           onClick={() => onChangeActiveTool("ai")}
+        />
+        <SidebarItem
+          icon={Settings}
+          label="Settings"
+          isActive={activeTool === "settings"}
+          onClick={() => onChangeActiveTool("settings")}
         />
       </ul>
     </aside>

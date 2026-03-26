@@ -33,6 +33,7 @@ import {
 
 interface NavbarProps {
   id: string;
+  projectName: string;
   editor: Editor | undefined;
   activeTool: ActiveTool;
   onChangeActiveTool: (tool: ActiveTool) => void;
@@ -40,6 +41,7 @@ interface NavbarProps {
 
 export const Navbar = ({
   id,
+  projectName,
   editor,
   activeTool,
   onChangeActiveTool,
@@ -150,7 +152,7 @@ export const Navbar = ({
       </div>
 
       <div className="flex-1 text-center font-medium opacity-90 truncate max-w-[300px]">
-        Untitled design - Presentation
+        {projectName || "Untitled design"}
       </div>
 
       <div className="flex items-center gap-x-3">

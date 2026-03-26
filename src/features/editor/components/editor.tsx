@@ -108,6 +108,7 @@ export const Editor = ({ initialData }: EditorProps) => {
       <PresentModal editor={editor} />
       <Navbar
         id={initialData.id}
+        projectName={initialData.name}
         editor={editor}
         activeTool={activeTool}
         onChangeActiveTool={onChangeActiveTool}
