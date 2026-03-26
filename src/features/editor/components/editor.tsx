@@ -51,7 +51,7 @@ export const Editor = ({ initialData }: EditorProps) => {
       }) => {
         mutate(values);
       },
-      500
+      1500 // save after 1.5s of inactivity
     ), [mutate]);
 
   const [activeTool, setActiveTool] = useState<ActiveTool>("select");
