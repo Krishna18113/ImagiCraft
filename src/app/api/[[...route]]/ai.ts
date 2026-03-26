@@ -106,6 +106,65 @@ const app = new Hono()
         );
       }
     },
+  )
+  .post(
+    "/generate-text",
+    verifyAuth(),
+    zValidator(
+      "json",
+      z.object({
+        prompt: z.string(),
+        type: z.enum(["headline", "tagline", "body", "custom"]).default("custom"),
+      }),
+    ),
+    async (c) => {
+      const { prompt, type } = c.req.valid("json");
+
+      const systemPrompts: Record<string, string> = {
+        headline: "Generate a short, punchy headline (max 8 words) for a design project. Only output the headline text, nothing else.",
+        tagline: "Generate a catchy tagline or slogan (max 12 words) for a design project. Only output the tagline text, nothing else.",
+        body: "Generate a short body paragraph (2-3 sentences max) for a design project. Only output the paragraph text, nothing else.",
+        custom: "Generate design-ready text based on the user's request. Be concise and creative. Only output the text, nothing else.",
+      };
+
+      try {
+        const response = await fetch(
+          "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions",
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+            body: JSON.stringify({
+              model: "mistralai/Mistral-7B-Instruct-v0.3",
+              messages: [
+                { role: "system", content: systemPrompts[type] || systemPrompts.custom },
+                { role: "user", content: prompt },
+              ],
+              max_tokens: 150,
+              temperature: 0.8,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HF API Error: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        const text = result.choices?.[0]?.message?.content?.trim() || "Could not generate text.";
+
+        return c.json({ data: text });
+      } catch (error: any) {
+        console.error("AI Text Generation Error:", error.message || error);
+        return c.json(
+          { error: error.message || "Failed to generate text." },
+          500
+        );
+      }
+    },
   );
 
 export default app;
