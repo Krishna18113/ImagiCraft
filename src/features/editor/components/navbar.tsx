@@ -235,6 +235,18 @@ export const Navbar = ({
                 </p>
               </div>
             </DropdownMenuItem>
+            <DropdownMenuItem
+              className="flex items-center gap-x-2"
+              onClick={() => editor?.savePdf()}
+            >
+              <CiFileOn className="size-8" />
+              <div>
+                <p>PDF</p>
+                <p className="text-xs text-muted-foreground">
+                  Best for presentations &amp; documents
+                </p>
+              </div>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
