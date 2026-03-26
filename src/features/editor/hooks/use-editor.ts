@@ -85,12 +85,13 @@ const buildEditor = ({
   };
 
   const saveSvg = () => {
-    const options = generateSaveOptions();
-
     canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-    const dataUrl = canvas.toDataURL(options);
+    const svgContent = canvas.toSVG();
+    const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
 
-    downloadFile(dataUrl, "svg");
+    downloadFile(url, "svg");
+    URL.revokeObjectURL(url);
     autoZoom();
   };
 
@@ -165,6 +166,7 @@ const buildEditor = ({
     canUndo,
     canRedo,
     autoZoom,
+    getZoomLevel: () => Math.round(canvas.getZoom() * 100),
     getWorkspace,
     zoomIn: () => {
       let zoomRatio = canvas.getZoom();

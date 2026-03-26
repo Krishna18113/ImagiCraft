@@ -219,6 +219,7 @@ export interface Editor {
   canUndo: () => boolean;
   canRedo: () => boolean;
   autoZoom: () => void;
+  getZoomLevel: () => number;
   zoomIn: () => void;
   zoomOut: () => void;
   getWorkspace: () => fabric.Object | undefined;

@@ -79,7 +79,7 @@ export const Footer = ({ editor }: FooterProps) => {
                 <ZoomOut className="size-4" />
               </Button>
             </Hint>
-            <span className="text-xs text-muted-foreground font-medium w-10 text-center">40%</span>
+            <span className="text-xs text-muted-foreground font-medium w-10 text-center">{editor?.getZoomLevel?.() ?? 100}%</span>
             <Hint label="Zoom in" side="top" sideOffset={10}>
               <Button
                 onClick={() => editor?.zoomIn()}
