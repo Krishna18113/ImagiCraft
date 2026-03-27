@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Loader, TriangleAlert } from "lucide-react";
 import { ResponseType, useGetTemplates } from "@/features/projects/api/use-get-templates";
 import { useCreateProject } from "@/features/projects/api/use-create-project";
+import { usePrompt } from "@/hooks/use-prompt";
 
 import { TemplateCard } from "./template-card";
 
@@ -17,11 +18,15 @@ export const TemplatesSection = () => {
     isError
   } = useGetTemplates({ page: "1", limit: "4" });
 
-  const onClick = (template: ResponseType["data"][0]) => {
+  const [PromptDialog, prompt] = usePrompt("Project Name", "What would you like to call this project?");
+
+  const onClick = async (template: ResponseType["data"][0]) => {
+    const name = await prompt();
+    if (!name) return;
 
     mutation.mutate(
       {
-        name: `${template.name} project`,
+        name: name,
         json: template.json,
         width: template.width,
         height: template.height,
@@ -69,6 +74,7 @@ export const TemplatesSection = () => {
 
   return (
     <div>
+      <PromptDialog />
       <h3 className="font-semibold text-2xl text-gray-800 mb-6">
         Explore templates
       </h3>

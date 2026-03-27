@@ -19,6 +19,7 @@ import {
 import { useCreateProject } from "@/features/projects/api/use-create-project";
 import { useSaveUserImage } from "@/features/images/api/use-save-user-image";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { usePrompt } from "@/hooks/use-prompt";
 
 const categories = [
     { id: "presentation", label: "Presentation", icon: Presentation, color: "text-orange-500", bgColor: "bg-orange-100", width: 1920, height: 1080, projectType: "PRESENTATION" as const },
@@ -42,11 +43,16 @@ export const CategoriesSection = () => {
     const [uploadedCount, setUploadedCount] = useState(0);
     const [dragging, setDragging] = useState(false);
 
-    const onClick = (category: typeof categories[0]) => {
+    const [PromptDialog, prompt] = usePrompt("Project Name", "What would you like to call this project?");
+
+    const onClick = async (category: typeof categories[0]) => {
+        const name = await prompt();
+        if (!name) return;
+
         setLoadingCategory(category.id);
         mutation.mutate(
             {
-                name: `${category.label} project`,
+                name: name,
                 json: "",
                 width: category.width,
                 height: category.height,
@@ -82,6 +88,7 @@ export const CategoriesSection = () => {
 
     return (
         <>
+            <PromptDialog />
             <div className="w-full overflow-x-auto pb-4 pt-2">
                 <div className="flex items-center gap-x-6 w-max mx-auto px-4">
                     {categories.map((category) => (
