@@ -74,7 +74,10 @@ export const CategoriesSection = () => {
         setUploading(true);
         try {
             for (const file of Array.from(files)) {
-                if (!file.type.startsWith("image/")) continue;
+                const isImage = file.type.startsWith("image/");
+                const isDoc = file.type.includes("pdf") || file.type.includes("presentation") || file.type.includes("powerpoint");
+                if (!isImage && !isDoc) continue;
+
                 const { url, name } = await uploadToCloudinary(file);
                 saveImage.mutate({ url, name });
                 setUploadedCount((c) => c + 1);
@@ -143,7 +146,7 @@ export const CategoriesSection = () => {
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept="image/*"
+                            accept="image/*,.pdf,.ppt,.pptx"
                             multiple
                             className="hidden"
                             onChange={(e) => handleFiles(e.target.files)}
@@ -170,7 +173,7 @@ export const CategoriesSection = () => {
                             ) : (
                                 <>
                                     <CloudUpload className="size-16 text-blue-400" strokeWidth={1.5} />
-                                    <p className="text-sm text-muted-foreground">Drop your images here or</p>
+                                    <p className="text-sm text-muted-foreground">Drop your images or documents here or</p>
                                     <span className="text-sm font-medium px-5 py-2 rounded-lg bg-white border border-gray-200 shadow-sm hover:bg-gray-50 text-gray-700 transition">
                                         Upload files
                                     </span>
@@ -185,7 +188,7 @@ export const CategoriesSection = () => {
                         </div>
 
                         <p className="text-xs text-center text-muted-foreground mt-3">
-                            Supports PNG, JPG, JPEG, WEBP images
+                            Supports PNG, JPG, PDF, and PPT files
                         </p>
                     </div>
                 </div>

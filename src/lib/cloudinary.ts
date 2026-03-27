@@ -11,7 +11,7 @@ export async function uploadToCloudinary(file: File): Promise<{ url: string; nam
     formData.append("upload_preset", uploadPreset);
 
     const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
         { method: "POST", body: formData }
     );
 

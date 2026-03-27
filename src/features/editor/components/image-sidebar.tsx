@@ -54,12 +54,12 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
         activeTool === "images" ? "visible" : "hidden"
       )}
     >
-      <ToolSidebarHeader title="Images" description="Add images to your canvas" />
+      <ToolSidebarHeader title="Images & Docs" description="Add images or documents to your canvas" />
       <div className="p-4 border-b">
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,.pdf,.ppt,.pptx,.txt,.doc,.docx,.xls,.xlsx,.csv,.json,.md"
           className="hidden"
           onChange={(e) => handleUpload(e.target.files)}
         />
@@ -71,7 +71,7 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
           {uploading ? (
             <><Loader2 className="size-4 animate-spin" /> Uploading…</>
           ) : (
-            <><Upload className="size-4" /> Upload Image</>
+            <><Upload className="size-4" /> Upload File</>
           )}
         </button>
       </div>

@@ -157,8 +157,13 @@ const buildEditor = ({
       });
     },
     addImage: (value: string) => {
+      let finalUrl = value;
+      if (value.includes("res.cloudinary.com") && value.match(/\.(pdf|ppt|pptx)$/i)) {
+        finalUrl = value.replace(/\.(pdf|ppt|pptx)$/i, ".jpg");
+      }
+
       fabric.Image.fromURL(
-        value,
+        finalUrl,
         (image) => {
           const workspace = getWorkspace();
           image.scaleToWidth(workspace?.width || 0);
