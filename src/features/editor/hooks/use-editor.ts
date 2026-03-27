@@ -168,6 +168,33 @@ const buildEditor = ({
         { crossOrigin: "anonymous" },
       );
     },
+    addVideo: (value: string) => {
+      const videoEl = document.createElement("video");
+      videoEl.src = value;
+      videoEl.crossOrigin = "anonymous";
+      videoEl.loop = true;
+      videoEl.muted = true;
+      videoEl.autoplay = true;
+      videoEl.onloadeddata = () => {
+        const workspace = getWorkspace();
+        const fabricVideo = new fabric.Image(videoEl as any, {
+          left: 0,
+          top: 0,
+        });
+        const scaleX = (workspace?.width || videoEl.videoWidth) / videoEl.videoWidth;
+        const scaleY = (workspace?.height || videoEl.videoHeight) / videoEl.videoHeight;
+        const scale = Math.min(scaleX, scaleY);
+        fabricVideo.scale(scale);
+        addToCanvas(fabricVideo);
+        videoEl.play();
+        // Continuously re-render so the video animates on the canvas
+        const render = () => {
+          canvas.renderAll();
+          fabric.util.requestAnimFrame(render);
+        };
+        fabric.util.requestAnimFrame(render);
+      };
+    },
     delete: () => {
       canvas.getActiveObjects().forEach((object) => canvas.remove(object));
       canvas.discardActiveObject();

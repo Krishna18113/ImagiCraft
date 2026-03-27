@@ -4,8 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     Presentation,
-    Video,
-    Store,
     FileText,
     Monitor,
     Globe,
@@ -19,8 +17,6 @@ import { useCreateProject } from "@/features/projects/api/use-create-project";
 
 const categories = [
     { id: "presentation", label: "Presentation", icon: Presentation, color: "text-orange-500", bgColor: "bg-orange-100", width: 1920, height: 1080, projectType: "PRESENTATION" as const },
-    { id: "video", label: "Video", icon: Video, color: "text-purple-500", bgColor: "bg-purple-100", width: 1920, height: 1080, projectType: "PRESENTATION" as const },
-    { id: "print", label: "Print Shop", icon: Store, color: "text-fuchsia-500", bgColor: "bg-fuchsia-100", width: 2480, height: 3508, projectType: "POSTER" as const },
     { id: "doc", label: "Doc", icon: FileText, color: "text-teal-500", bgColor: "bg-teal-100", width: 800, height: 1131, projectType: "POSTER" as const },
     { id: "whiteboard", label: "Whiteboard", icon: Monitor, color: "text-green-500", bgColor: "bg-green-100", width: 2000, height: 2000, projectType: "IMAGE" as const },
     { id: "website", label: "Website", icon: Globe, color: "text-blue-500", bgColor: "bg-blue-100", width: 1440, height: 1024, projectType: "IMAGE" as const },

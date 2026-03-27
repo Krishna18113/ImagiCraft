@@ -107,7 +107,8 @@ export type ActiveTool =
   | "settings"
   | "ai"
   | "remove-bg"
-  | "templates";
+  | "templates"
+  | "video";
 
 export type ProjectType = "PRESENTATION" | "IMAGE" | "LOGO" | "POSTER";
 
@@ -234,6 +235,7 @@ export interface Editor {
   onPaste: () => void;
   changeImageFilter: (value: string) => void;
   addImage: (value: string) => void;
+  addVideo: (value: string) => void;
   delete: () => void;
   changeFontSize: (value: number) => void;
   getActiveFontSize: () => number;
