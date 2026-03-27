@@ -45,30 +45,35 @@ export default {
 
         const { email, password } = validatedFields.data;
 
-        const query = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, email));
+        try {
+          const query = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, email));
 
-        const user = query[0];
+          const user = query[0];
 
-        if (!user || !user.password) {
-          return null;
+          if (!user || !user.password) {
+            return null;
+          }
+
+          const passwordsMatch = await bcrypt.compare(
+            password,
+            user.password,
+          );
+
+          if (!passwordsMatch) {
+            return null;
+          }
+
+          return user;
+        } catch (error) {
+          console.error("AUTHORIZE ERROR:", error);
+          throw error;
         }
-
-        const passwordsMatch = await bcrypt.compare(
-          password,
-          user.password,
-        );
-
-        if (!passwordsMatch) {
-          return null;
-        }
-
-        return user;
       },
-    }), 
-    GitHub, 
+    }),
+    GitHub,
     Google
   ],
   pages: {
@@ -88,7 +93,7 @@ export default {
     },
     jwt({ token, user }) {
       if (user) {
-        token.id = user.id;  
+        token.id = user.id;
       }
 
       return token;
