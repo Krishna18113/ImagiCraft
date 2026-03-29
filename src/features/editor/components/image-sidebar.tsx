@@ -7,16 +7,15 @@ import { ToolSidebarClose } from "@/features/editor/components/tool-sidebar-clos
 import { ToolSidebarHeader } from "@/features/editor/components/tool-sidebar-header";
 import {
   fetchFileFromUrl,
-  importPptxFile,
-  isLegacyPptFile,
+  getAsposeSlideImageUrl,
+  importPowerPointViaAspose,
   isPowerPointFile,
-  isPptxFile,
 } from "@/features/editor/utils/pptx-import";
 
 import { useGetImages } from "@/features/images/api/use-get-images";
 import { useGetUserImages } from "@/features/images/api/use-get-user-images";
 import { useSaveUserImage } from "@/features/images/api/use-save-user-image";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadOfficeToCloudinary, uploadToCloudinary } from "@/lib/cloudinary";
 
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -38,13 +37,9 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
     onChangeActiveTool("select");
   };
 
-  const loadPptxIntoEditor = async (file: File) => {
-    const imported = await importPptxFile(file);
+  const loadPowerPointIntoEditor = async (file: File, url: string) => {
+    const imported = await importPowerPointViaAspose({ file, url });
     editor?.loadJson(imported.json);
-  };
-
-  const showLegacyPptMessage = () => {
-    window.alert("Legacy .ppt files are not supported for editing. Please convert the file to .pptx and upload it again.");
   };
 
   const handleUpload = async (files: FileList | null) => {
@@ -53,16 +48,13 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
     try {
       const file = files[0];
 
-      if (isLegacyPptFile(file.name)) {
-        showLegacyPptMessage();
-        return;
-      }
-
-      const { url, name } = await uploadToCloudinary(file);
+      const { url, name } = isPowerPointFile(file.name)
+        ? await uploadOfficeToCloudinary(file)
+        : await uploadToCloudinary(file);
       saveImage.mutate({ url, name });
 
-      if (isPptxFile(file.name)) {
-        await loadPptxIntoEditor(file);
+      if (isPowerPointFile(file.name)) {
+        await loadPowerPointIntoEditor(file, url);
         return;
       }
 
@@ -121,11 +113,12 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
               <div className="grid grid-cols-2 gap-4">
                 {userImages.map((image) => {
                   let thumbUrl = image.url;
-                  const isLegacyPpt = isLegacyPptFile(image.name);
-                  if (
-                    !isLegacyPpt &&
+                  const isPowerPoint = isPowerPointFile(image.name);
+                  if (isPowerPoint) {
+                    thumbUrl = getAsposeSlideImageUrl(image.url, 1);
+                  } else if (
                     thumbUrl.includes("res.cloudinary.com") &&
-                    thumbUrl.match(/\.(pdf|pptx)$/i)
+                    thumbUrl.match(/\.(pdf)$/i)
                   ) {
                     // Cloudinary Aspose: append .jpg to trigger rasterization (file.ppt.jpg)
                     thumbUrl = thumbUrl
@@ -138,14 +131,9 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
                       key={image.id}
                       onClick={async () => {
                         try {
-                          if (isLegacyPpt) {
-                            showLegacyPptMessage();
-                            return;
-                          }
-
-                          if (isPptxFile(image.name)) {
+                          if (isPowerPoint) {
                             const file = await fetchFileFromUrl(image.url, image.name);
-                            await loadPptxIntoEditor(file);
+                            await loadPowerPointIntoEditor(file, image.url);
                             return;
                           }
 
@@ -156,18 +144,12 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
                       }}
                       className="relative w-full h-[100px] group hover:opacity-75 transition bg-muted rounded-sm overflow-hidden border"
                     >
-                      {isPowerPointFile(image.name) && isLegacyPpt ? (
-                        <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-500 text-xs px-2 text-center">
-                          PPT files must be converted to PPTX
-                        </div>
-                      ) : (
-                        <img
-                          src={thumbUrl}
-                          alt={image.name}
-                          className="object-cover w-full h-full"
-                          loading="lazy"
-                        />
-                      )}
+                      <img
+                        src={thumbUrl}
+                        alt={image.name}
+                        className="object-cover w-full h-full"
+                        loading="lazy"
+                      />
                       <span className="opacity-0 group-hover:opacity-100 absolute left-0 bottom-0 w-full text-[10px] truncate text-white p-1 bg-black/50 text-left">
                         {image.name}
                       </span>
