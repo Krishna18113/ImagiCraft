@@ -209,6 +209,7 @@ export type BuildEditorProps = {
   addPage: () => void;
   setPageIndex: (index: number) => void;
   deletePage: () => void;
+  loadJsonDocument: (json: string) => void;
 };
 
 export interface Editor {

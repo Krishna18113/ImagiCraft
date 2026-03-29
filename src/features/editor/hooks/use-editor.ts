@@ -53,6 +53,7 @@ const buildEditor = ({
   addPage,
   setPageIndex,
   deletePage,
+  loadJsonDocument,
 }: BuildEditorProps): Editor => {
   const getWorkspace = () => {
     return canvas
@@ -90,6 +91,7 @@ const buildEditor = ({
   return {
     // Export actions
     ...exportActions,
+    loadJson: loadJsonDocument,
     // Shape actions
     ...shapeActions,
     // Text actions
@@ -158,7 +160,7 @@ const buildEditor = ({
     },
     addImage: (value: string) => {
       let finalUrl = value;
-      if (value.includes("res.cloudinary.com") && value.match(/\.(pdf|ppt|pptx)$/i)) {
+      if (value.includes("res.cloudinary.com") && value.match(/\.(pdf|pptx)$/i)) {
         // Cloudinary Aspose: keep original extension, append .jpg to trigger rasterization
         // e.g. /raw/upload/.../file.ppt  →  /image/upload/.../file.ppt.jpg
         finalUrl = value
@@ -520,6 +522,64 @@ export const useEditor = ({
     });
   }, [canvas, pages, currentPageIndex, canvasHistory, setHistoryIndex, saveCallback]);
 
+  const loadJsonDocument = useCallback((json: string) => {
+    if (!canvas) return;
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(json);
+    } catch (error) {
+      console.error("Failed to parse imported JSON:", error);
+      return;
+    }
+
+    const importedPages =
+      parsed?.isMultiPage && Array.isArray(parsed.pages) && parsed.pages.length > 0
+        ? parsed.pages
+        : [json];
+
+    let firstPageData: any;
+    try {
+      firstPageData =
+        parsed?.isMultiPage && Array.isArray(parsed.pages) && parsed.pages.length > 0
+          ? JSON.parse(importedPages[0])
+          : parsed;
+    } catch (error) {
+      console.error("Failed to parse imported page JSON:", error);
+      return;
+    }
+
+    isPaging.current = true;
+
+    canvas.loadFromJSON(firstPageData, () => {
+      canvas.renderAll();
+      autoZoom();
+
+      const currentState = JSON.stringify(canvas.toJSON(JSON_KEYS));
+      const nextPages = [...importedPages];
+      nextPages[0] = currentState;
+
+      setPages(nextPages);
+      setCurrentPageIndex(0);
+      canvasHistory.current = [currentState];
+      setHistoryIndex(0);
+      isPaging.current = false;
+
+      const workspace = canvas.getObjects().find((obj) => obj.name === "clip");
+      const height = workspace?.height || 0;
+      const width = workspace?.width || 0;
+
+      saveCallback?.({
+        json: JSON.stringify({
+          isMultiPage: true,
+          pages: nextPages,
+        }),
+        height,
+        width,
+      });
+    });
+  }, [canvas, autoZoom, canvasHistory, saveCallback, setHistoryIndex]);
+
   const editor = useMemo(() => {
     if (canvas) {
       return buildEditor({
@@ -548,6 +608,7 @@ export const useEditor = ({
         addPage,
         setPageIndex,
         deletePage,
+        loadJsonDocument,
       });
     }
 
@@ -574,6 +635,7 @@ export const useEditor = ({
       addPage,
       setPageIndex,
       deletePage,
+      loadJsonDocument,
     ]);
 
   const init = useCallback(

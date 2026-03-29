@@ -5,6 +5,13 @@ import { AlertTriangle, Loader, Loader2, Upload } from "lucide-react";
 import { ActiveTool, Editor } from "@/features/editor/types";
 import { ToolSidebarClose } from "@/features/editor/components/tool-sidebar-close";
 import { ToolSidebarHeader } from "@/features/editor/components/tool-sidebar-header";
+import {
+  fetchFileFromUrl,
+  importPptxFile,
+  isLegacyPptFile,
+  isPowerPointFile,
+  isPptxFile,
+} from "@/features/editor/utils/pptx-import";
 
 import { useGetImages } from "@/features/images/api/use-get-images";
 import { useGetUserImages } from "@/features/images/api/use-get-user-images";
@@ -31,14 +38,35 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
     onChangeActiveTool("select");
   };
 
+  const loadPptxIntoEditor = async (file: File) => {
+    const imported = await importPptxFile(file);
+    editor?.loadJson(imported.json);
+  };
+
+  const showLegacyPptMessage = () => {
+    window.alert("Legacy .ppt files are not supported for editing. Please convert the file to .pptx and upload it again.");
+  };
+
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploading(true);
     try {
       const file = files[0];
+
+      if (isLegacyPptFile(file.name)) {
+        showLegacyPptMessage();
+        return;
+      }
+
       const { url, name } = await uploadToCloudinary(file);
-      editor?.addImage(url);
       saveImage.mutate({ url, name });
+
+      if (isPptxFile(file.name)) {
+        await loadPptxIntoEditor(file);
+        return;
+      }
+
+      editor?.addImage(url);
     } catch (e) {
       console.error("Upload failed:", e);
     } finally {
@@ -93,7 +121,12 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
               <div className="grid grid-cols-2 gap-4">
                 {userImages.map((image) => {
                   let thumbUrl = image.url;
-                  if (thumbUrl.includes("res.cloudinary.com") && thumbUrl.match(/\.(pdf|ppt|pptx)$/i)) {
+                  const isLegacyPpt = isLegacyPptFile(image.name);
+                  if (
+                    !isLegacyPpt &&
+                    thumbUrl.includes("res.cloudinary.com") &&
+                    thumbUrl.match(/\.(pdf|pptx)$/i)
+                  ) {
                     // Cloudinary Aspose: append .jpg to trigger rasterization (file.ppt.jpg)
                     thumbUrl = thumbUrl
                       .replace("/raw/upload/", "/image/upload/")
@@ -103,15 +136,38 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
                   return (
                     <button
                       key={image.id}
-                      onClick={() => editor?.addImage(image.url)}
+                      onClick={async () => {
+                        try {
+                          if (isLegacyPpt) {
+                            showLegacyPptMessage();
+                            return;
+                          }
+
+                          if (isPptxFile(image.name)) {
+                            const file = await fetchFileFromUrl(image.url, image.name);
+                            await loadPptxIntoEditor(file);
+                            return;
+                          }
+
+                          editor?.addImage(image.url);
+                        } catch (error) {
+                          console.error("Failed to open uploaded file:", error);
+                        }
+                      }}
                       className="relative w-full h-[100px] group hover:opacity-75 transition bg-muted rounded-sm overflow-hidden border"
                     >
-                      <img
-                        src={thumbUrl}
-                        alt={image.name}
-                        className="object-cover w-full h-full"
-                        loading="lazy"
-                      />
+                      {isPowerPointFile(image.name) && isLegacyPpt ? (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-500 text-xs px-2 text-center">
+                          PPT files must be converted to PPTX
+                        </div>
+                      ) : (
+                        <img
+                          src={thumbUrl}
+                          alt={image.name}
+                          className="object-cover w-full h-full"
+                          loading="lazy"
+                        />
+                      )}
                       <span className="opacity-0 group-hover:opacity-100 absolute left-0 bottom-0 w-full text-[10px] truncate text-white p-1 bg-black/50 text-left">
                         {image.name}
                       </span>
