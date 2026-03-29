@@ -1198,7 +1198,7 @@ export const importPowerPointViaAspose = async ({
     pages.push(
       await createCanvasPageFromImage({
         height,
-        imageUrl: slideUrl,
+      imageUrl: slideUrl,
         width,
       })
     );
