@@ -18,6 +18,34 @@ type SlideImportResult = {
 };
 
 type SlideRelationshipMap = Record<string, string>;
+type ThemeColorMap = Record<string, string>;
+type TextStyle = {
+  fill?: string;
+  fontFamily?: string;
+  fontSize?: number;
+  fontStyle?: "italic" | "normal";
+  fontWeight?: number;
+  linethrough?: boolean;
+  underline?: boolean;
+};
+type TextRun = {
+  style: TextStyle;
+  text: string;
+};
+type ParagraphContent = {
+  alignment: fabric.Textbox["textAlign"];
+  runs: TextRun[];
+};
+type PlaceholderInfo = {
+  idx?: string;
+  type?: string;
+};
+type ShapeStyleContext = {
+  masterDefaultRunProps?: Element;
+  placeholderInfo?: PlaceholderInfo;
+  slideMasterXml?: XMLDocument;
+  sourceShapes: Element[];
+};
 
 const toArray = <T>(value: ArrayLike<T>) => Array.from(value);
 
@@ -32,6 +60,10 @@ const getDirectChildByLocalName = (node: XmlNode, localName: string) => {
     (child): child is Element =>
       child.nodeType === Node.ELEMENT_NODE && (child as Element).localName === localName
   );
+};
+
+const getFirstDescendantByLocalName = (node: XmlNode, localName: string) => {
+  return getDescendantsByLocalName(node, localName)[0];
 };
 
 const readXml = async (zip: any, path: string) => {
@@ -113,21 +145,427 @@ const getTextAlignment = (shape: Element) => {
   }
 };
 
-const getTextColor = (shape: Element) => {
-  const solidFill = getDescendantsByLocalName(shape, "solidFill")[0];
-  const srgbClr = solidFill ? getDirectChildByLocalName(solidFill, "srgbClr") : undefined;
-  const value = srgbClr?.getAttribute("val");
+const getParagraphAlignment = (
+  paragraphProps: Element | undefined,
+  fallback: fabric.Textbox["textAlign"]
+) => {
+  const alignment = paragraphProps?.getAttribute("algn");
 
-  return value ? `#${value}` : "#111827";
+  switch (alignment) {
+    case "ctr":
+      return "center";
+    case "r":
+      return "right";
+    case "just":
+      return "justify";
+    default:
+      return fallback;
+  }
 };
 
-const getFontSize = (shape: Element) => {
-  const runProps =
-    getDescendantsByLocalName(shape, "rPr")[0] ||
-    getDescendantsByLocalName(shape, "endParaRPr")[0];
-  const pptSize = Number(runProps?.getAttribute("sz") || "1800");
+const pptFontSizeToPx = (pptSize?: string | null) => {
+  const parsedSize = Number(pptSize || "1800");
+  return Math.max(14, (parsedSize / 100) * (96 / 72));
+};
 
-  return Math.max(14, (pptSize / 100) * (96 / 72));
+const normalizeColor = (value?: string | null) => {
+  if (!value) return undefined;
+  return value.startsWith("#") ? value : `#${value}`;
+};
+
+const getColorFromFill = (
+  fillParent: Element | undefined,
+  themeColors: ThemeColorMap
+) => {
+  if (!fillParent) return undefined;
+
+  const solidFill =
+    fillParent.localName === "solidFill"
+      ? fillParent
+      : getDirectChildByLocalName(fillParent, "solidFill");
+
+  if (!solidFill) return undefined;
+
+  const srgbClr = getDirectChildByLocalName(solidFill, "srgbClr");
+  const schemeClr = getDirectChildByLocalName(solidFill, "schemeClr");
+  const presetClr = getDirectChildByLocalName(solidFill, "prstClr");
+
+  if (srgbClr?.getAttribute("val")) {
+    return normalizeColor(srgbClr.getAttribute("val"));
+  }
+
+  if (schemeClr?.getAttribute("val")) {
+    return themeColors[schemeClr.getAttribute("val") || ""] || undefined;
+  }
+
+  if (presetClr?.getAttribute("val")) {
+    return presetClr.getAttribute("val") || undefined;
+  }
+
+  return undefined;
+};
+
+const getShapeTextColor = (shape: Element, themeColors: ThemeColorMap) => {
+  const textBody = getDescendantsByLocalName(shape, "txBody")[0];
+  const bodyProps = textBody ? getDirectChildByLocalName(textBody, "bodyPr") : undefined;
+  const shapeFill = getDescendantsByLocalName(shape, "solidFill")[0];
+
+  return (
+    getColorFromFill(bodyProps, themeColors) ||
+    getColorFromFill(shapeFill, themeColors) ||
+    "#111827"
+  );
+};
+
+const getPlaceholderInfo = (shape: Element): PlaceholderInfo | undefined => {
+  const nvSpPr = getDirectChildByLocalName(shape, "nvSpPr");
+  const nvPr = nvSpPr ? getDirectChildByLocalName(nvSpPr, "nvPr") : undefined;
+  const placeholder = nvPr ? getDirectChildByLocalName(nvPr, "ph") : undefined;
+
+  if (!placeholder) return undefined;
+
+  return {
+    idx: placeholder.getAttribute("idx") || undefined,
+    type: placeholder.getAttribute("type") || "body",
+  };
+};
+
+const findPlaceholderShape = (
+  sourceXml: XMLDocument | undefined,
+  placeholderInfo: PlaceholderInfo | undefined
+) => {
+  if (!sourceXml || !placeholderInfo) return undefined;
+
+  const shapes = getDescendantsByLocalName(sourceXml, "sp");
+
+  return shapes.find((shape) => {
+    const info = getPlaceholderInfo(shape);
+    if (!info) return false;
+
+    const sameType = (info.type || "body") === (placeholderInfo.type || "body");
+    const sameIdx = (info.idx || "") === (placeholderInfo.idx || "");
+
+    if (placeholderInfo.idx) {
+      return sameType && sameIdx;
+    }
+
+    return sameType;
+  });
+};
+
+const getTextLevelProps = (shape: Element, level = 0) => {
+  const textBody = getFirstDescendantByLocalName(shape, "txBody");
+  const listStyle = textBody ? getDirectChildByLocalName(textBody, "lstStyle") : undefined;
+  const levelTag = `lvl${level + 1}pPr`;
+  const paragraphProps = listStyle ? getDirectChildByLocalName(listStyle, levelTag) : undefined;
+
+  return {
+    defaultRunProps: paragraphProps ? getDirectChildByLocalName(paragraphProps, "defRPr") : undefined,
+    paragraphProps,
+  };
+};
+
+const getMasterTextStyleProps = (
+  slideMasterXml: XMLDocument | undefined,
+  placeholderType: string | undefined,
+  level = 0
+) => {
+  if (!slideMasterXml) return {};
+
+  const txStyles = getFirstDescendantByLocalName(slideMasterXml, "txStyles");
+  if (!txStyles) return {};
+
+  const styleTag =
+    placeholderType === "title" || placeholderType === "ctrTitle"
+      ? "titleStyle"
+      : placeholderType === "body" || placeholderType === "subTitle"
+        ? "bodyStyle"
+        : "otherStyle";
+
+  const styleNode = getDirectChildByLocalName(txStyles, styleTag);
+  if (!styleNode) return {};
+
+  const levelTag = `lvl${level + 1}pPr`;
+  const paragraphProps = getDirectChildByLocalName(styleNode, levelTag);
+
+  return {
+    defaultRunProps: paragraphProps ? getDirectChildByLocalName(paragraphProps, "defRPr") : undefined,
+    paragraphProps,
+  };
+};
+
+const buildShapeStyleContext = ({
+  shape,
+  slideLayoutXml,
+  slideMasterXml,
+}: {
+  shape: Element;
+  slideLayoutXml?: XMLDocument;
+  slideMasterXml?: XMLDocument;
+}): ShapeStyleContext => {
+  const placeholderInfo = getPlaceholderInfo(shape);
+  const layoutShape = findPlaceholderShape(slideLayoutXml, placeholderInfo);
+  const masterShape = findPlaceholderShape(slideMasterXml, placeholderInfo);
+  const masterTextStyle = getMasterTextStyleProps(
+    slideMasterXml,
+    placeholderInfo?.type,
+    0
+  );
+
+  return {
+    masterDefaultRunProps: masterTextStyle.defaultRunProps,
+    placeholderInfo,
+    slideMasterXml,
+    sourceShapes: [shape, layoutShape, masterShape].filter(Boolean) as Element[],
+  };
+};
+
+const getDefaultRunProps = (
+  styleContext: ShapeStyleContext,
+  level = 0
+) => {
+  for (const sourceShape of styleContext.sourceShapes) {
+    const textLevelProps = getTextLevelProps(sourceShape, level);
+    const directDefRpr = getFirstDescendantByLocalName(sourceShape, "defRPr");
+    const endParaRPr = getFirstDescendantByLocalName(sourceShape, "endParaRPr");
+
+    if (directDefRpr || textLevelProps.defaultRunProps || endParaRPr) {
+      return directDefRpr || textLevelProps.defaultRunProps || endParaRPr;
+    }
+  }
+
+  return styleContext.masterDefaultRunProps;
+};
+
+const getRunTypeface = (runProps: Element | undefined) => {
+  const latin = runProps ? getDirectChildByLocalName(runProps, "latin") : undefined;
+  const typeface = latin?.getAttribute("typeface");
+
+  if (!typeface || typeface.startsWith("+")) {
+    return "Arial";
+  }
+
+  return typeface;
+};
+
+const getRunStyle = ({
+  defaultRunProps,
+  fallbackColor,
+  runProps,
+  themeColors,
+}: {
+  defaultRunProps?: Element;
+  fallbackColor: string;
+  runProps?: Element;
+  themeColors: ThemeColorMap;
+}): TextStyle => {
+  const sizeSource = runProps?.getAttribute("sz") || defaultRunProps?.getAttribute("sz");
+  const fill =
+    getColorFromFill(runProps, themeColors) ||
+    getColorFromFill(defaultRunProps, themeColors) ||
+    fallbackColor;
+
+  return {
+    fill,
+    fontFamily: getRunTypeface(runProps) || getRunTypeface(defaultRunProps),
+    fontSize: pptFontSizeToPx(sizeSource),
+    fontStyle: runProps?.getAttribute("i") === "1" || defaultRunProps?.getAttribute("i") === "1"
+      ? "italic"
+      : "normal",
+    fontWeight: runProps?.getAttribute("b") === "1" || defaultRunProps?.getAttribute("b") === "1"
+      ? 700
+      : 400,
+    linethrough:
+      runProps?.getAttribute("strike") === "sngStrike" ||
+      defaultRunProps?.getAttribute("strike") === "sngStrike",
+    underline:
+      (runProps?.getAttribute("u") && runProps.getAttribute("u") !== "none") ||
+      (defaultRunProps?.getAttribute("u") && defaultRunProps.getAttribute("u") !== "none")
+        ? true
+        : false,
+  };
+};
+
+const buildParagraphContent = (
+  styleContext: ShapeStyleContext,
+  paragraph: Element,
+  themeColors: ThemeColorMap
+): ParagraphContent | null => {
+  const level = Number(getDirectChildByLocalName(paragraph, "pPr")?.getAttribute("lvl") || "0");
+  const defaultRunProps = getDefaultRunProps(styleContext, level);
+  const paragraphProps = getDirectChildByLocalName(paragraph, "pPr");
+  const paragraphDefaultFromSource = styleContext.sourceShapes
+    .map((sourceShape) => getTextLevelProps(sourceShape, level).defaultRunProps)
+    .find(Boolean);
+  const paragraphPropsFromSource = styleContext.sourceShapes
+    .map((sourceShape) => getTextLevelProps(sourceShape, level).paragraphProps)
+    .find(Boolean);
+  const masterTextStyle = getMasterTextStyleProps(
+    styleContext.slideMasterXml,
+    styleContext.placeholderInfo?.type,
+    level
+  );
+  const paragraphDefaultRunProps = paragraphProps
+    ? getDirectChildByLocalName(paragraphProps, "defRPr")
+    : paragraphDefaultFromSource || masterTextStyle.defaultRunProps;
+  const fallbackColor =
+    styleContext.sourceShapes
+      .map((sourceShape) => getShapeTextColor(sourceShape, themeColors))
+      .find(Boolean) || "#111827";
+
+  const runs: TextRun[] = [];
+
+  for (const child of toArray(paragraph.childNodes)) {
+    if (child.nodeType !== Node.ELEMENT_NODE) continue;
+
+    const element = child as Element;
+
+    if (element.localName === "r") {
+      const runProps = getDirectChildByLocalName(element, "rPr") || paragraphDefaultRunProps || defaultRunProps;
+      const textNode = getDirectChildByLocalName(element, "t");
+      const text = textNode?.textContent || "";
+
+      if (!text) continue;
+
+      runs.push({
+        style: getRunStyle({
+          defaultRunProps: paragraphDefaultRunProps || defaultRunProps,
+          fallbackColor,
+          runProps,
+          themeColors,
+        }),
+        text,
+      });
+    }
+
+    if (element.localName === "br") {
+      runs.push({
+        style: getRunStyle({
+          defaultRunProps: paragraphDefaultRunProps || defaultRunProps,
+          fallbackColor,
+          runProps: getDirectChildByLocalName(element, "rPr") || paragraphDefaultRunProps || defaultRunProps,
+          themeColors,
+        }),
+        text: "\n",
+      });
+    }
+
+    if (element.localName === "fld") {
+      const runProps = getDirectChildByLocalName(element, "rPr") || paragraphDefaultRunProps || defaultRunProps;
+      const textNode = getDirectChildByLocalName(element, "t");
+      const text = textNode?.textContent || "";
+
+      if (!text) continue;
+
+      runs.push({
+        style: getRunStyle({
+          defaultRunProps: paragraphDefaultRunProps || defaultRunProps,
+          fallbackColor,
+          runProps,
+          themeColors,
+        }),
+        text,
+      });
+    }
+  }
+
+  if (runs.length === 0) {
+    const endParaRPr = getDirectChildByLocalName(paragraph, "endParaRPr") || paragraphDefaultRunProps || defaultRunProps;
+    return {
+      alignment: getParagraphAlignment(
+        paragraphProps || paragraphPropsFromSource || masterTextStyle.paragraphProps,
+        getTextAlignment(styleContext.sourceShapes[0]) as fabric.Textbox["textAlign"]
+      ),
+      runs: [{
+        style: getRunStyle({
+          defaultRunProps: paragraphDefaultRunProps || defaultRunProps,
+          fallbackColor,
+          runProps: endParaRPr,
+          themeColors,
+        }),
+        text: "",
+      }],
+    };
+  }
+
+  return {
+    alignment: getParagraphAlignment(
+      paragraphProps || paragraphPropsFromSource || masterTextStyle.paragraphProps,
+      getTextAlignment(styleContext.sourceShapes[0]) as fabric.Textbox["textAlign"]
+    ),
+    runs,
+  };
+};
+
+const buildTextContent = (
+  shape: Element,
+  styleContext: ShapeStyleContext,
+  themeColors: ThemeColorMap
+) => {
+  const paragraphs = getDescendantsByLocalName(shape, "p")
+    .map((paragraph) => buildParagraphContent(styleContext, paragraph, themeColors))
+    .filter(Boolean) as ParagraphContent[];
+
+  if (paragraphs.length === 0) return null;
+
+  let text = "";
+  let defaultStyle: TextStyle | undefined;
+  const styles: Record<number, Record<number, TextStyle>> = {};
+  let lineIndex = 0;
+  let charIndex = 0;
+  let textAlign: fabric.Textbox["textAlign"] = "left";
+
+  const applyText = (value: string, style: TextStyle) => {
+    if (!defaultStyle) {
+      defaultStyle = style;
+    }
+
+    for (const character of value) {
+      if (character === "\n") {
+        text += "\n";
+        lineIndex += 1;
+        charIndex = 0;
+        continue;
+      }
+
+      if (!styles[lineIndex]) {
+        styles[lineIndex] = {};
+      }
+
+      styles[lineIndex][charIndex] = style;
+      text += character;
+      charIndex += 1;
+    }
+  };
+
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    if (paragraphIndex === 0) {
+      textAlign = paragraph.alignment;
+    }
+
+    paragraph.runs.forEach((run) => applyText(run.text, run.style));
+
+    if (paragraphIndex < paragraphs.length - 1) {
+      applyText("\n", defaultStyle || paragraph.runs[0]?.style || {});
+    }
+  });
+
+  if (!text.trim()) return null;
+
+  return {
+    defaultStyle: defaultStyle || {
+      fill: getShapeTextColor(shape, themeColors),
+      fontFamily: "Arial",
+      fontSize: 24,
+      fontStyle: "normal" as const,
+      fontWeight: 400,
+      underline: false,
+      linethrough: false,
+    },
+    styles,
+    text,
+    textAlign,
+  };
 };
 
 const getShapeBox = (
@@ -179,12 +617,41 @@ const createFabricImage = async (dataUrl: string) => {
   });
 };
 
+const buildThemeColorMap = async (zip: any) => {
+  const themeXml = await readXml(zip, "ppt/theme/theme1.xml");
+  if (!themeXml) return {} as ThemeColorMap;
+
+  const colorScheme = getDescendantsByLocalName(themeXml, "clrScheme")[0];
+  if (!colorScheme) return {} as ThemeColorMap;
+
+  const themeColors: ThemeColorMap = {};
+
+  for (const node of toArray(colorScheme.childNodes)) {
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+    const element = node as Element;
+    const colorNode =
+      getDirectChildByLocalName(element, "srgbClr") ||
+      getDirectChildByLocalName(element, "sysClr");
+    const colorValue = colorNode?.getAttribute("val") || colorNode?.getAttribute("lastClr");
+
+    if (element.localName && colorValue) {
+      themeColors[element.localName] = normalizeColor(colorValue) || colorValue;
+    }
+  }
+
+  return themeColors;
+};
+
 const buildSlideJson = async ({
   height,
   presentationHeightEmu,
   presentationWidthEmu,
   slideRelationships,
   slideXml,
+  slideLayoutXml,
+  slideMasterXml,
+  themeColors,
   width,
   zip,
 }: {
@@ -193,6 +660,9 @@ const buildSlideJson = async ({
   presentationWidthEmu: number;
   slideRelationships: SlideRelationshipMap;
   slideXml: XMLDocument;
+  slideLayoutXml?: XMLDocument;
+  slideMasterXml?: XMLDocument;
+  themeColors: ThemeColorMap;
   width: number;
   zip: any;
 }) => {
@@ -215,28 +685,29 @@ const buildSlideJson = async ({
 
   const shapes = getDescendantsByLocalName(slideXml, "sp");
   for (const shape of shapes) {
-    const text = getDescendantsByLocalName(shape, "p")
-      .map((paragraph) =>
-        getDescendantsByLocalName(paragraph, "t")
-          .map((textNode) => textNode.textContent || "")
-          .join("")
-          .trim()
-      )
-      .filter(Boolean)
-      .join("\n");
-
-    if (!text) continue;
+    const styleContext = buildShapeStyleContext({
+      shape,
+      slideLayoutXml,
+      slideMasterXml,
+    });
+    const textContent = buildTextContent(shape, styleContext, themeColors);
+    if (!textContent) continue;
 
     const box = getShapeBox(shape, widthRatio, heightRatio);
-    const textbox = new fabric.Textbox(text, {
+    const textbox = new fabric.Textbox(textContent.text, {
       angle: box.angle,
-      fill: getTextColor(shape),
-      fontFamily: "Arial",
-      fontSize: getFontSize(shape),
+      fill: textContent.defaultStyle.fill,
+      fontFamily: textContent.defaultStyle.fontFamily || "Arial",
+      fontSize: textContent.defaultStyle.fontSize || 24,
+      fontStyle: textContent.defaultStyle.fontStyle || "normal",
+      fontWeight: textContent.defaultStyle.fontWeight || 400,
       height: Math.max(box.height, 32),
       left: box.left,
-      textAlign: getTextAlignment(shape) as fabric.Textbox["textAlign"],
+      linethrough: textContent.defaultStyle.linethrough || false,
+      styles: textContent.styles,
+      textAlign: textContent.textAlign,
       top: box.top,
+      underline: textContent.defaultStyle.underline || false,
       width: Math.max(box.width, 80),
     });
 
@@ -292,6 +763,7 @@ export const importPptxFile = async (file: File): Promise<SlideImportResult> => 
 
   const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const themeColors = await buildThemeColorMap(zip);
 
   const presentationXml = await readXml(zip, "ppt/presentation.xml");
   if (!presentationXml) {
@@ -337,6 +809,30 @@ export const importPptxFile = async (file: File): Promise<SlideImportResult> => 
       slidePath
     );
 
+    const slideLayoutPath = Object.values(slideRelationships).find((path) =>
+      path.includes("/slideLayouts/")
+    );
+    const slideLayoutXml = slideLayoutPath
+      ? ((await readXml(zip, slideLayoutPath)) || undefined)
+      : undefined;
+
+    let slideMasterXml: XMLDocument | undefined;
+    if (slideLayoutPath && slideLayoutXml) {
+      const slideLayoutRelationships = await buildRelationshipMap(
+        zip,
+        slideLayoutPath.replace("/slideLayouts/", "/slideLayouts/_rels/").replace(".xml", ".xml.rels"),
+        slideLayoutPath
+      );
+
+      const slideMasterPath = Object.values(slideLayoutRelationships).find((path) =>
+        path.includes("/slideMasters/")
+      );
+
+      slideMasterXml = slideMasterPath
+        ? ((await readXml(zip, slideMasterPath)) || undefined)
+        : undefined;
+    }
+
     pages.push(
       await buildSlideJson({
         height,
@@ -344,6 +840,9 @@ export const importPptxFile = async (file: File): Promise<SlideImportResult> => 
         presentationWidthEmu,
         slideRelationships,
         slideXml,
+        slideLayoutXml,
+        slideMasterXml,
+        themeColors,
         width,
         zip,
       })
