@@ -159,7 +159,11 @@ const buildEditor = ({
     addImage: (value: string) => {
       let finalUrl = value;
       if (value.includes("res.cloudinary.com") && value.match(/\.(pdf|ppt|pptx)$/i)) {
-        finalUrl = value.replace(/\.(pdf|ppt|pptx)$/i, ".jpg");
+        // Cloudinary Aspose: keep original extension, append .jpg to trigger rasterization
+        // e.g. /raw/upload/.../file.ppt  →  /image/upload/.../file.ppt.jpg
+        finalUrl = value
+          .replace("/raw/upload/", "/image/upload/")
+          + ".jpg";
       }
 
       fabric.Image.fromURL(

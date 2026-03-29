@@ -91,23 +91,33 @@ export const ImageSidebar = ({ editor, activeTool, onChangeActiveTool }: ImageSi
                 Your uploads
               </p>
               <div className="grid grid-cols-2 gap-4">
-                {userImages.map((image) => (
-                  <button
-                    key={image.id}
-                    onClick={() => editor?.addImage(image.url)}
-                    className="relative w-full h-[100px] group hover:opacity-75 transition bg-muted rounded-sm overflow-hidden border"
-                  >
-                    <img
-                      src={image.url}
-                      alt={image.name}
-                      className="object-cover w-full h-full"
-                      loading="lazy"
-                    />
-                    <span className="opacity-0 group-hover:opacity-100 absolute left-0 bottom-0 w-full text-[10px] truncate text-white p-1 bg-black/50 text-left">
-                      {image.name}
-                    </span>
-                  </button>
-                ))}
+                {userImages.map((image) => {
+                  let thumbUrl = image.url;
+                  if (thumbUrl.includes("res.cloudinary.com") && thumbUrl.match(/\.(pdf|ppt|pptx)$/i)) {
+                    // Cloudinary Aspose: append .jpg to trigger rasterization (file.ppt.jpg)
+                    thumbUrl = thumbUrl
+                      .replace("/raw/upload/", "/image/upload/")
+                      + ".jpg";
+                  }
+
+                  return (
+                    <button
+                      key={image.id}
+                      onClick={() => editor?.addImage(image.url)}
+                      className="relative w-full h-[100px] group hover:opacity-75 transition bg-muted rounded-sm overflow-hidden border"
+                    >
+                      <img
+                        src={thumbUrl}
+                        alt={image.name}
+                        className="object-cover w-full h-full"
+                        loading="lazy"
+                      />
+                      <span className="opacity-0 group-hover:opacity-100 absolute left-0 bottom-0 w-full text-[10px] truncate text-white p-1 bg-black/50 text-left">
+                        {image.name}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               <hr className="mt-4" />
             </div>
