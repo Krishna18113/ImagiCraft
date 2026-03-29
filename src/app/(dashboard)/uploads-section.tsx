@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, ChevronLeft, ChevronRight, ImageIcon, Loader, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, ImageIcon, Loader, Trash, X } from "lucide-react";
 import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
 
+import { useConfirm } from "@/hooks/use-confirm";
 import { useGetUserImages } from "@/features/images/api/use-get-user-images";
+import { useDeleteUserImage } from "@/features/images/api/use-delete-user-image";
 
 type UploadedImage = { id: string; url: string; name: string; createdAt: string };
 
@@ -14,10 +16,12 @@ function Lightbox({
   images,
   index,
   onClose,
+  onDelete,
 }: {
   images: UploadedImage[];
   index: number;
   onClose: () => void;
+  onDelete: (id: string) => void;
 }) {
   const [current, setCurrent] = useState(index);
 
@@ -47,13 +51,22 @@ function Lightbox({
         className="relative flex flex-col items-center max-w-4xl w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close */}
-        <button
-          onClick={onClose}
-          className="absolute -top-10 right-0 text-white/80 hover:text-white transition"
-        >
-          <X className="size-7" />
-        </button>
+        {/* Buttons Header */}
+        <div className="absolute -top-10 right-0 flex items-center gap-x-4">
+          <button
+            onClick={() => onDelete(image.id)}
+            className="text-white/80 hover:text-red-500 transition"
+            title="Delete image"
+          >
+            <Trash className="size-6" />
+          </button>
+          <button
+            onClick={onClose}
+            className="text-white/80 hover:text-white transition"
+          >
+            <X className="size-7" />
+          </button>
+        </div>
 
         {/* Image */}
         <div className="relative w-full max-h-[75vh] rounded-xl overflow-hidden shadow-2xl bg-black">
@@ -107,8 +120,26 @@ function Lightbox({
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export const UploadsSection = () => {
+  const [ConfirmationDialog, confirm] = useConfirm(
+    "Delete image?",
+    "This will permanently delete this upload."
+  );
+
   const { data, status } = useGetUserImages();
+  const deleteMutation = useDeleteUserImage();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const onDelete = async (id: string) => {
+    const ok = await confirm();
+
+    if (ok) {
+      deleteMutation.mutate({ id }, {
+        onSuccess: () => {
+          setLightboxIndex(null);
+        }
+      });
+    }
+  };
 
   if (status === "pending") {
     return (
@@ -147,11 +178,13 @@ export const UploadsSection = () => {
 
   return (
     <>
+      <ConfirmationDialog />
       {lightboxIndex !== null && (
         <Lightbox
           images={data}
           index={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          onDelete={onDelete}
         />
       )}
 
@@ -159,12 +192,14 @@ export const UploadsSection = () => {
         <h3 className="font-semibold text-2xl text-gray-800">Your uploads</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {data.map((image, i) => (
-            <button
+            <div
               key={image.id}
-              onClick={() => setLightboxIndex(i)}
-              className="group relative flex flex-col gap-y-2 cursor-pointer text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-xl"
+              className="group relative flex flex-col gap-y-2 text-left"
             >
-              <div className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-sm group-hover:shadow-md transition-shadow duration-200">
+              <div
+                onClick={() => setLightboxIndex(i)}
+                className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-sm group-hover:shadow-md transition-shadow duration-200 cursor-pointer"
+              >
                 <Image
                   src={image.url}
                   alt={image.name}
@@ -172,14 +207,25 @@ export const UploadsSection = () => {
                   className="object-cover group-hover:scale-105 transition-transform duration-300"
                   unoptimized
                 />
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(image.id);
+                    }}
+                    className="size-8 flex items-center justify-center bg-white/90 hover:bg-red-50 text-red-500 rounded-full shadow-sm border border-gray-200"
+                  >
+                    <Trash className="size-4" />
+                  </button>
+                </div>
               </div>
-              <div className="px-0.5">
-                <p className="text-sm font-medium text-gray-700 truncate">{image.name}</p>
-                <p className="text-xs text-muted-foreground">
+              <div className="px-0.5" onClick={() => setLightboxIndex(i)}>
+                <p className="text-sm font-medium text-gray-700 truncate cursor-pointer">{image.name}</p>
+                <p className="text-xs text-muted-foreground cursor-pointer">
                   {formatDistanceToNow(new Date(image.createdAt), { addSuffix: true })}
                 </p>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </div>

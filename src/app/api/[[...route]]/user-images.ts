@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { verifyAuth } from "@hono/auth-js";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/db/drizzle";
 import { userImages } from "@/db/schema";
@@ -38,6 +38,34 @@ const app = new Hono()
                 .insert(userImages)
                 .values({ userId, url, name, createdAt: new Date() })
                 .returning();
+
+            return c.json({ data: image });
+        }
+    )
+    .delete(
+        "/:id",
+        verifyAuth(),
+        zValidator("param", z.object({ id: z.string() })),
+        async (c) => {
+            const auth = c.get("authUser");
+            const userId = auth.session?.user?.id;
+            if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+            const { id } = c.req.valid("param");
+
+            const [image] = await db
+                .delete(userImages)
+                .where(
+                    and(
+                        eq(userImages.id, id),
+                        eq(userImages.userId, userId)
+                    )
+                )
+                .returning();
+
+            if (!image) {
+                return c.json({ error: "Not found" }, 404);
+            }
 
             return c.json({ data: image });
         }
