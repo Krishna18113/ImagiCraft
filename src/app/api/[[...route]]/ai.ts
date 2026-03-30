@@ -129,7 +129,7 @@ const app = new Hono()
 
       try {
         const response = await fetch(
-          "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions",
+          "https://router.huggingface.co/novita/v3/openai/chat/completions",
           {
             headers: {
               Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
@@ -137,7 +137,7 @@ const app = new Hono()
             },
             method: "POST",
             body: JSON.stringify({
-              model: "mistralai/Mistral-7B-Instruct-v0.3",
+              model: "meta-llama/llama-3.1-8b-instruct",
               messages: [
                 { role: "system", content: systemPrompts[type] || systemPrompts.custom },
                 { role: "user", content: prompt },
