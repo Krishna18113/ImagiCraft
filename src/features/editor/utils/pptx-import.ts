@@ -1102,9 +1102,10 @@ export const getAsposeSlideImageUrl = (url: string, pageNumber: number) => {
   const imageSegment = deliverySegment === "/raw/private/"
     ? "/image/private/"
     : "/image/upload/";
+  const pageSegment = pageNumber > 1 ? `pg_${pageNumber}/` : "";
 
   return url
-    .replace(deliverySegment, `${imageSegment}pg_${pageNumber}/`)
+    .replace(deliverySegment, `${imageSegment}${pageSegment}`)
     .concat(".jpg");
 };
 
