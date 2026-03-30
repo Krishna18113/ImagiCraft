@@ -205,6 +205,36 @@ const getColorFromFill = (
   return undefined;
 };
 
+const getColorFromElement = (
+  element: Element | undefined,
+  themeColors: ThemeColorMap
+) => {
+  if (!element) return undefined;
+
+  const srgbClr = getDirectChildByLocalName(element, "srgbClr");
+  const schemeClr = getDirectChildByLocalName(element, "schemeClr");
+  const presetClr = getDirectChildByLocalName(element, "prstClr");
+  const sysClr = getDirectChildByLocalName(element, "sysClr");
+
+  if (srgbClr?.getAttribute("val")) {
+    return normalizeColor(srgbClr.getAttribute("val"));
+  }
+
+  if (schemeClr?.getAttribute("val")) {
+    return themeColors[schemeClr.getAttribute("val") || ""] || undefined;
+  }
+
+  if (presetClr?.getAttribute("val")) {
+    return presetClr.getAttribute("val") || undefined;
+  }
+
+  if (sysClr?.getAttribute("lastClr")) {
+    return normalizeColor(sysClr.getAttribute("lastClr"));
+  }
+
+  return undefined;
+};
+
 const getShapeTextColor = (shape: Element, themeColors: ThemeColorMap) => {
   const textBody = getDescendantsByLocalName(shape, "txBody")[0];
   const bodyProps = textBody ? getDirectChildByLocalName(textBody, "bodyPr") : undefined;
@@ -214,6 +244,44 @@ const getShapeTextColor = (shape: Element, themeColors: ThemeColorMap) => {
     getColorFromFill(bodyProps, themeColors) ||
     getColorFromFill(shapeFill, themeColors) ||
     "#111827"
+  );
+};
+
+const getShapeFillColor = (shape: Element, themeColors: ThemeColorMap) => {
+  const shapeProps = getDirectChildByLocalName(shape, "spPr");
+  return getColorFromFill(shapeProps, themeColors);
+};
+
+const getShapeStrokeColor = (shape: Element, themeColors: ThemeColorMap) => {
+  const shapeProps = getDirectChildByLocalName(shape, "spPr");
+  const line = shapeProps ? getDirectChildByLocalName(shapeProps, "ln") : undefined;
+  return getColorFromFill(line, themeColors);
+};
+
+const getShapeStrokeWidth = (shape: Element) => {
+  const shapeProps = getDirectChildByLocalName(shape, "spPr");
+  const line = shapeProps ? getDirectChildByLocalName(shapeProps, "ln") : undefined;
+  const rawWidth = Number(line?.getAttribute("w") || 0);
+
+  if (!rawWidth) return 0;
+
+  return Math.max(1, rawWidth / 12700);
+};
+
+const getSlideBackgroundColor = (
+  slideXml: XMLDocument,
+  slideMasterXml: XMLDocument | undefined,
+  themeColors: ThemeColorMap
+) => {
+  const slideBackground = getFirstDescendantByLocalName(slideXml, "bg");
+  const slideBackgroundProps = slideBackground ? getDirectChildByLocalName(slideBackground, "bgPr") : undefined;
+  const slideBackgroundRef = slideBackground ? getDirectChildByLocalName(slideBackground, "bgRef") : undefined;
+
+  return (
+    getColorFromFill(slideBackgroundProps, themeColors) ||
+    getColorFromElement(slideBackgroundRef, themeColors) ||
+    getColorFromFill(getFirstDescendantByLocalName(slideMasterXml || slideXml, "bgPr"), themeColors) ||
+    "#ffffff"
   );
 };
 
@@ -329,12 +397,119 @@ const getDefaultRunProps = (
     const directDefRpr = getFirstDescendantByLocalName(sourceShape, "defRPr");
     const endParaRPr = getFirstDescendantByLocalName(sourceShape, "endParaRPr");
 
-    if (directDefRpr || textLevelProps.defaultRunProps || endParaRPr) {
-      return directDefRpr || textLevelProps.defaultRunProps || endParaRPr;
+    if (textLevelProps.defaultRunProps || directDefRpr || endParaRPr) {
+      return textLevelProps.defaultRunProps || directDefRpr || endParaRPr;
     }
   }
 
   return styleContext.masterDefaultRunProps;
+};
+
+const getBulletPrefix = (
+  paragraphProps: Element | undefined,
+  paragraphStyleProps: Element | undefined,
+  paragraphIndex: number
+) => {
+  const effectiveParagraphProps = paragraphProps || paragraphStyleProps;
+  if (!effectiveParagraphProps) return "";
+
+  if (getDirectChildByLocalName(effectiveParagraphProps, "buNone")) {
+    return "";
+  }
+
+  const bulletChar = getDirectChildByLocalName(effectiveParagraphProps, "buChar");
+  if (bulletChar?.getAttribute("char")) {
+    return `${bulletChar.getAttribute("char")} `;
+  }
+
+  const autoNumber = getDirectChildByLocalName(effectiveParagraphProps, "buAutoNum");
+  if (autoNumber) {
+    const startAt = Number(autoNumber.getAttribute("startAt") || "1");
+    return `${startAt + paragraphIndex}. `;
+  }
+
+  return "";
+};
+
+const getShapeGeometryPreset = (shape: Element) => {
+  const shapeProps = getDirectChildByLocalName(shape, "spPr");
+  const presetGeometry = shapeProps ? getDirectChildByLocalName(shapeProps, "prstGeom") : undefined;
+  return presetGeometry?.getAttribute("prst") || undefined;
+};
+
+const createFabricShapeFromPreset = ({
+  box,
+  fill,
+  preset,
+  stroke,
+  strokeWidth,
+}: {
+  box: ReturnType<typeof getShapeBox>;
+  fill?: string;
+  preset?: string;
+  stroke?: string;
+  strokeWidth: number;
+}) => {
+  const commonProps = {
+    angle: box.angle,
+    fill: fill || "transparent",
+    left: box.left,
+    stroke,
+    strokeWidth,
+    top: box.top,
+  };
+
+  switch (preset) {
+    case "rect":
+      return new fabric.Rect({
+        ...commonProps,
+        height: Math.max(box.height, 1),
+        width: Math.max(box.width, 1),
+      });
+    case "roundRect":
+      return new fabric.Rect({
+        ...commonProps,
+        height: Math.max(box.height, 1),
+        rx: Math.min(box.width, box.height) * 0.08,
+        ry: Math.min(box.width, box.height) * 0.08,
+        width: Math.max(box.width, 1),
+      });
+    case "ellipse":
+      return new fabric.Ellipse({
+        ...commonProps,
+        originX: "left",
+        originY: "top",
+        rx: Math.max(box.width / 2, 1),
+        ry: Math.max(box.height / 2, 1),
+      });
+    case "triangle":
+      return new fabric.Triangle({
+        ...commonProps,
+        height: Math.max(box.height, 1),
+        width: Math.max(box.width, 1),
+      });
+    case "rtTriangle":
+      return new fabric.Polygon(
+        [
+          { x: 0, y: 0 },
+          { x: box.width, y: box.height },
+          { x: 0, y: box.height },
+        ],
+        commonProps
+      );
+    case "diamond":
+      return new fabric.Polygon(
+        [
+          { x: box.width / 2, y: 0 },
+          { x: box.width, y: box.height / 2 },
+          { x: box.width / 2, y: box.height },
+          { x: 0, y: box.height / 2 },
+        ],
+        commonProps
+      );
+    default:
+      return undefined;
+  }
 };
 
 const getRunTypeface = (runProps: Element | undefined) => {
@@ -389,7 +564,8 @@ const getRunStyle = ({
 const buildParagraphContent = (
   styleContext: ShapeStyleContext,
   paragraph: Element,
-  themeColors: ThemeColorMap
+  themeColors: ThemeColorMap,
+  paragraphIndex: number
 ): ParagraphContent | null => {
   const level = Number(getDirectChildByLocalName(paragraph, "pPr")?.getAttribute("lvl") || "0");
   const defaultRunProps = getDefaultRunProps(styleContext, level);
@@ -405,15 +581,30 @@ const buildParagraphContent = (
     styleContext.placeholderInfo?.type,
     level
   );
-  const paragraphDefaultRunProps = paragraphProps
-    ? getDirectChildByLocalName(paragraphProps, "defRPr")
-    : paragraphDefaultFromSource || masterTextStyle.defaultRunProps;
+  const paragraphStyleProps = paragraphPropsFromSource || masterTextStyle.paragraphProps;
+  const paragraphDefaultRunProps =
+    (paragraphProps ? getDirectChildByLocalName(paragraphProps, "defRPr") : undefined) ||
+    paragraphDefaultFromSource ||
+    masterTextStyle.defaultRunProps;
   const fallbackColor =
     styleContext.sourceShapes
       .map((sourceShape) => getShapeTextColor(sourceShape, themeColors))
       .find(Boolean) || "#111827";
 
   const runs: TextRun[] = [];
+  const bulletPrefix = getBulletPrefix(paragraphProps, paragraphStyleProps, paragraphIndex);
+
+  if (bulletPrefix) {
+    runs.push({
+      style: getRunStyle({
+        defaultRunProps: paragraphDefaultRunProps || defaultRunProps,
+        fallbackColor,
+        runProps: paragraphDefaultRunProps || defaultRunProps,
+        themeColors,
+      }),
+      text: bulletPrefix,
+    });
+  }
 
   for (const child of toArray(paragraph.childNodes)) {
     if (child.nodeType !== Node.ELEMENT_NODE) continue;
@@ -473,7 +664,7 @@ const buildParagraphContent = (
     const endParaRPr = getDirectChildByLocalName(paragraph, "endParaRPr") || paragraphDefaultRunProps || defaultRunProps;
     return {
       alignment: getParagraphAlignment(
-        paragraphProps || paragraphPropsFromSource || masterTextStyle.paragraphProps,
+        paragraphProps || paragraphStyleProps,
         getTextAlignment(styleContext.sourceShapes[0]) as fabric.Textbox["textAlign"]
       ),
       runs: [{
@@ -490,7 +681,7 @@ const buildParagraphContent = (
 
   return {
     alignment: getParagraphAlignment(
-      paragraphProps || paragraphPropsFromSource || masterTextStyle.paragraphProps,
+      paragraphProps || paragraphStyleProps,
       getTextAlignment(styleContext.sourceShapes[0]) as fabric.Textbox["textAlign"]
     ),
     runs,
@@ -503,7 +694,9 @@ const buildTextContent = (
   themeColors: ThemeColorMap
 ) => {
   const paragraphs = getDescendantsByLocalName(shape, "p")
-    .map((paragraph) => buildParagraphContent(styleContext, paragraph, themeColors))
+    .map((paragraph, paragraphIndex) =>
+      buildParagraphContent(styleContext, paragraph, themeColors, paragraphIndex)
+    )
     .filter(Boolean) as ParagraphContent[];
 
   if (paragraphs.length === 0) return null;
@@ -671,7 +864,7 @@ const buildSlideJson = async ({
 
   const tempCanvas = new fabric.StaticCanvas(null, { width, height });
   const workspace = new fabric.Rect({
-    fill: "white",
+    fill: getSlideBackgroundColor(slideXml, slideMasterXml, themeColors),
     hasControls: false,
     height,
     left: 0,
@@ -685,6 +878,19 @@ const buildSlideJson = async ({
 
   const shapes = getDescendantsByLocalName(slideXml, "sp");
   for (const shape of shapes) {
+    const box = getShapeBox(shape, widthRatio, heightRatio);
+    const designShape = createFabricShapeFromPreset({
+      box,
+      fill: getShapeFillColor(shape, themeColors),
+      preset: getShapeGeometryPreset(shape),
+      stroke: getShapeStrokeColor(shape, themeColors),
+      strokeWidth: getShapeStrokeWidth(shape),
+    });
+
+    if (designShape) {
+      tempCanvas.add(designShape);
+    }
+
     const styleContext = buildShapeStyleContext({
       shape,
       slideLayoutXml,
@@ -693,7 +899,6 @@ const buildSlideJson = async ({
     const textContent = buildTextContent(shape, styleContext, themeColors);
     if (!textContent) continue;
 
-    const box = getShapeBox(shape, widthRatio, heightRatio);
     const textbox = new fabric.Textbox(textContent.text, {
       angle: box.angle,
       fill: textContent.defaultStyle.fill,
@@ -851,6 +1056,152 @@ export const importPptxFile = async (file: File): Promise<SlideImportResult> => 
 
   if (pages.length === 0) {
     throw new Error("The PPTX file was read, but no slide content could be imported.");
+  }
+
+  return {
+    height,
+    json: JSON.stringify({
+      isMultiPage: true,
+      pages,
+    }),
+    width,
+  };
+};
+
+const getPresentationMetadata = async (file: File) => {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+
+  const presentationXml = await readXml(zip, "ppt/presentation.xml");
+  if (!presentationXml) {
+    throw new Error("This file does not look like a valid PowerPoint presentation.");
+  }
+
+  const sizeNode = getDescendantsByLocalName(presentationXml, "sldSz")[0];
+  const presentationWidthEmu = Number(sizeNode?.getAttribute("cx") || 10 * EMU_PER_INCH);
+  const presentationHeightEmu = Number(sizeNode?.getAttribute("cy") || 5.625 * EMU_PER_INCH);
+  const slideCount = getDescendantsByLocalName(presentationXml, "sldId").length;
+
+  const width = DEFAULT_WIDTH;
+  const height = Math.max(
+    1,
+    Math.round((presentationHeightEmu / presentationWidthEmu) * DEFAULT_WIDTH)
+  ) || DEFAULT_HEIGHT;
+
+  return {
+    height,
+    slideCount,
+    width,
+  };
+};
+
+export const getAsposeSlideImageUrl = (url: string, pageNumber: number) => {
+  const deliverySegment = url.includes("/raw/private/")
+    ? "/raw/private/"
+    : "/raw/upload/";
+  const imageSegment = deliverySegment === "/raw/private/"
+    ? "/image/private/"
+    : "/image/upload/";
+
+  return url
+    .replace(deliverySegment, `${imageSegment}pg_${pageNumber}/`)
+    .concat(".jpg");
+};
+
+const waitForImageUrl = async (url: string, timeoutMs = 30000, intervalMs = 1500) => {
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    const loaded = await new Promise<boolean>((resolve) => {
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.onload = () => resolve(true);
+      image.onerror = () => resolve(false);
+      const cacheBustedUrl = url.includes("?")
+        ? `${url}&_ts=${Date.now()}`
+        : `${url}?_ts=${Date.now()}`;
+      image.src = cacheBustedUrl;
+    });
+
+    if (loaded) return;
+
+    await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error("Aspose conversion is still processing. Please try again in a few seconds.");
+};
+
+const createCanvasPageFromImage = async ({
+  height,
+  imageUrl,
+  width,
+}: {
+  height: number;
+  imageUrl: string;
+  width: number;
+}) => {
+  const tempCanvas = new fabric.StaticCanvas(null, { width, height });
+  const workspace = new fabric.Rect({
+    fill: "white",
+    hasControls: false,
+    height,
+    left: 0,
+    name: "clip",
+    selectable: false,
+    top: 0,
+    width,
+  });
+
+  tempCanvas.add(workspace);
+
+  const image = await createFabricImage(imageUrl);
+  const naturalWidth = image.width || width || 1;
+  const naturalHeight = image.height || height || 1;
+
+  image.set({
+    evented: false,
+    left: 0,
+    name: "slide-background",
+    scaleX: width / naturalWidth,
+    scaleY: height / naturalHeight,
+    selectable: false,
+    top: 0,
+  });
+
+  tempCanvas.add(image);
+
+  const slideJson = JSON.stringify(tempCanvas.toJSON(JSON_KEYS));
+  tempCanvas.dispose();
+
+  return slideJson;
+};
+
+export const importPowerPointViaAspose = async ({
+  file,
+  url,
+}: {
+  file: File;
+  url: string;
+}): Promise<SlideImportResult> => {
+  const { height, slideCount, width } = await getPresentationMetadata(file);
+
+  if (slideCount === 0) {
+    throw new Error("No slides were found in this PowerPoint file.");
+  }
+
+  const firstSlideUrl = getAsposeSlideImageUrl(url, 1);
+  await waitForImageUrl(firstSlideUrl);
+
+  const pages: string[] = [];
+  for (let pageNumber = 1; pageNumber <= slideCount; pageNumber += 1) {
+    const slideUrl = getAsposeSlideImageUrl(url, pageNumber);
+    pages.push(
+      await createCanvasPageFromImage({
+        height,
+      imageUrl: slideUrl,
+        width,
+      })
+    );
   }
 
   return {

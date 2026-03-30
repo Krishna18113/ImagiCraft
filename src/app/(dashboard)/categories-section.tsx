@@ -18,7 +18,7 @@ import {
 
 import { useCreateProject } from "@/features/projects/api/use-create-project";
 import { useSaveUserImage } from "@/features/images/api/use-save-user-image";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadOfficeToCloudinary, uploadToCloudinary } from "@/lib/cloudinary";
 import { usePrompt } from "@/hooks/use-prompt";
 
 const categories = [
@@ -78,7 +78,10 @@ export const CategoriesSection = () => {
                 const isDoc = file.type.includes("pdf") || file.type.includes("presentation") || file.type.includes("powerpoint");
                 if (!isImage && !isDoc) continue;
 
-                const { url, name } = await uploadToCloudinary(file);
+                const isPowerPoint = /\.(ppt|pptx)$/i.test(file.name);
+                const { url, name } = isPowerPoint
+                    ? await uploadOfficeToCloudinary(file)
+                    : await uploadToCloudinary(file);
                 saveImage.mutate({ url, name });
                 setUploadedCount((c) => c + 1);
             }
