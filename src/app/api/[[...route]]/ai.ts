@@ -75,6 +75,9 @@ const app = new Hono()
     async (c) => {
       const { prompt } = c.req.valid("json");
 
+      // Always prevent the model from rendering text into the image
+      const cleanedPrompt = prompt + ", no text, no words, no letters";
+
       try {
         const response = await fetch(
           "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
@@ -84,7 +87,7 @@ const app = new Hono()
               "Content-Type": "application/json",
             },
             method: "POST",
-            body: JSON.stringify({ inputs: prompt }),
+            body: JSON.stringify({ inputs: cleanedPrompt }),
           }
         );
 
@@ -108,24 +111,21 @@ const app = new Hono()
     },
   )
   .post(
-    "/generate-text",
+    "/rewrite-text",
     verifyAuth(),
     zValidator(
       "json",
       z.object({
-        prompt: z.string(),
-        type: z.enum(["headline", "tagline", "body", "custom"]).default("custom"),
+        text: z.string(),
+        instruction: z.string(),
       }),
     ),
     async (c) => {
-      const { prompt, type } = c.req.valid("json");
+      const { text, instruction } = c.req.valid("json");
 
-      const systemPrompts: Record<string, string> = {
-        headline: "Generate a short, punchy headline (max 8 words) for a design project. Only output the headline text, nothing else.",
-        tagline: "Generate a catchy tagline or slogan (max 12 words) for a design project. Only output the tagline text, nothing else.",
-        body: "Generate a short body paragraph (2-3 sentences max) for a design project. Only output the paragraph text, nothing else.",
-        custom: "Generate design-ready text based on the user's request. Be concise and creative. Only output the text, nothing else.",
-      };
+      const systemPrompt = `You are a graphic design AI assistant specializing in text refinement.
+The user has a text layer on their canvas and wants to modify it using this instruction: "${instruction}".
+Modify the text accordingly. ONLY return the modified text string. Do NOT use markdown. Do NOT use emojis unless asked. Do NOT include any meta-commentary. Just output the refined text.`;
 
       try {
         const response = await fetch(
@@ -139,10 +139,10 @@ const app = new Hono()
             body: JSON.stringify({
               model: "meta-llama/llama-3.1-8b-instruct",
               messages: [
-                { role: "system", content: systemPrompts[type] || systemPrompts.custom },
-                { role: "user", content: prompt },
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `Original text: ${text}` },
               ],
-              max_tokens: 150,
+              max_tokens: 300,
               temperature: 0.8,
             }),
           }
@@ -154,9 +154,90 @@ const app = new Hono()
         }
 
         const result = await response.json();
-        const text = result.choices?.[0]?.message?.content?.trim() || "Could not generate text.";
+        let rewrittenText = result.choices?.[0]?.message?.content?.trim();
+        
+        // Strip stray quotes
+        rewrittenText = rewrittenText.replace(/^["'\u201c]+|["'\u201d]+$/g, '').trim();
+        
+        return c.json({ data: rewrittenText });
+      } catch (error: any) {
+        console.error("AI Rewrite Error:", error.message || error);
+        return c.json(
+          { error: error.message || "Failed to rewrite text." },
+          500
+        );
+      }
+    },
+  )
+  .post(
+    "/generate-text",
+    verifyAuth(),
+    zValidator(
+      "json",
+      z.object({
+        prompt: z.string(),
+        type: z.enum(["headline", "tagline", "body", "custom"]).default("custom"),
+      }),
+    ),
+    async (c) => {
+      const { prompt, type } = c.req.valid("json");
 
-        return c.json({ data: text });
+      const validFonts = "Arial, Arial Black, Verdana, Helvetica, Tahoma, Trebuchet MS, Times New Roman, Georgia, Garamond, Courier New, Brush Script MT, Palatino, Bookman, Comic Sans MS, Impact, Lucida Sans Unicode, Geneva, Lucida Console";
+
+      const systemPrompt = `You are an expert graphic design assistant. You must respond ONLY with valid JSON.
+The JSON must have a single key "elements" containing an array of objects representing text layers to be added to a design canvas.
+
+Each object MUST have the following properties:
+- content (string): The generated text phrase.
+- fontSize (number): The font size in pixels (e.g. 64 for title, 24 for body). Max 120.
+- fontFamily (string): Pick EXACTLY ONE font from this list: ${validFonts}.
+- fill (string): The text color as a hex code. EXTREMELY IMPORTANT: ALWAYS use high-contrast, bold colors (like stark white #FFFFFF or pure black #000000, or a very bright pop of color) that are easily readable on a poster. Do NOT use dull or low-contrast colors.
+- fontWeight (number): Font weight (e.g. 400 for normal, 700 for bold, 900 for extra bold).
+- textAlign (string): Alignment ("left", "center", "right").
+
+INSTRUCTIONS:
+- If the user explicitly asks for multiple elements (like "title and subtitle"), generate exactly those elements intelligently with matching but distinct styles (e.g., big bold title, smaller lighter subtitle).
+- If the request is generic, just generate 1 element perfectly styled for the request.
+- Ensure colors look good together. Do NOT include markdown blocks (\`\`\`json). Just the raw JSON object.`;
+
+      try {
+        const response = await fetch(
+          "https://router.huggingface.co/novita/v3/openai/chat/completions",
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+            body: JSON.stringify({
+              model: "meta-llama/llama-3.1-8b-instruct",
+              response_format: { type: "json_object" },
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `Text Type Requested: ${type === 'custom' ? 'Follow User Instructions' : type}.\nUser Prompt: ${prompt}` },
+              ],
+              max_tokens: 400,
+              temperature: 0.8,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HF API Error: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        let textContent = result.choices?.[0]?.message?.content?.trim();
+        
+        // Strip markdown if Llama ignored the system prompt
+        if (textContent.startsWith("```")) {
+          textContent = textContent.replace(/^```json/g, "").replace(/^```/g, "").replace(/```$/g, "").trim();
+        }
+
+        const parsed = JSON.parse(textContent || '{"elements":[]}');
+        
+        return c.json({ data: parsed.elements || [] });
       } catch (error: any) {
         console.error("AI Text Generation Error:", error.message || error);
         return c.json(
