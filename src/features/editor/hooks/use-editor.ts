@@ -172,9 +172,23 @@ const buildEditor = ({
         finalUrl,
         (image) => {
           const workspace = getWorkspace();
-          image.scaleToWidth(workspace?.width || 0);
-          image.scaleToHeight(workspace?.height || 0);
-          addToCanvas(image);
+          const wsWidth = workspace?.width || 1;
+          const wsHeight = workspace?.height || 1;
+          const imgWidth = image.width || 1;
+          const imgHeight = image.height || 1;
+          const wsLeft = workspace?.left || 0;
+          const wsTop = workspace?.top || 0;
+
+          // Stretch image to exactly fill the workspace - no gaps, guaranteed
+          image.set({
+            scaleX: wsWidth / imgWidth,
+            scaleY: wsHeight / imgHeight,
+            left: wsLeft,
+            top: wsTop,
+          });
+
+          canvas.add(image);
+          canvas.setActiveObject(image);
         },
         { crossOrigin: "anonymous" },
       );

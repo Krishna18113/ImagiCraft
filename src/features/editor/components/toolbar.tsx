@@ -18,8 +18,18 @@ import {
   AlignRight,
   Trash,
   SquareSplitHorizontal,
-  Copy
+  Copy,
+  Sparkles
 } from "lucide-react";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { useRewriteText } from "@/features/ai/api/use-rewrite-text";
 
 import { isTextType } from "@/features/editor/utils";
 import { FontSizeInput } from "@/features/editor/components/font-size-input";
@@ -71,7 +81,34 @@ export const Toolbar = ({
   const selectedObjectType = editor?.selectedObjects[0]?.type;
 
   const isText = isTextType(selectedObjectType);
-  const isImage = selectedObjectType === "image";
+  const isImage = selectedObjectType === "image" || selectedObjectType === "Image";
+
+  const rewriteMutation = useRewriteText();
+
+  const onRewrite = (instruction: string) => {
+    if (!selectedObject || !(selectedObject as any).text) return;
+    const currentText = (selectedObject as any).text;
+    
+    const toastId = toast.loading("Rewriting text with AI...");
+
+    rewriteMutation.mutate(
+      { text: currentText, instruction },
+      {
+        onSuccess: (response) => {
+          if ((response as any).data) {
+            (selectedObject as any).set({ text: (response as any).data });
+            editor?.canvas.renderAll();
+            toast.success("Text optimized!", { id: toastId });
+          } else {
+            toast.error("Failed to rewrite text.", { id: toastId });
+          }
+        },
+        onError: () => {
+          toast.error("Failed to rewrite text.", { id: toastId });
+        },
+      }
+    );
+  };
 
   const onChangeFontSize = (value: number) => {
     if (!selectedObject) {
@@ -214,6 +251,39 @@ export const Toolbar = ({
               <BsBorderWidth className="size-4" />
             </Button>
           </Hint>
+        </div>
+      )}
+      {isText && (
+        <div className="flex items-center h-full justify-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div>
+                <Hint label="Magic Write" side="bottom" sideOffset={5}>
+                  <Button size="icon" variant="ghost" className="text-purple-600 hover:bg-purple-100 hover:text-purple-700 bg-purple-50/50 mx-1">
+                    <Sparkles className="size-4" />
+                  </Button>
+                </Hint>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56 z-[60]">
+              <DropdownMenuItem onClick={() => onRewrite("Make it catchier and more punchy")}>
+                <Sparkles className="size-4 mr-2 text-purple-600" />
+                Make it catchier
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onRewrite("Make it shorter and more concise")}>
+                Make it shorter
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onRewrite("Fix spelling and grammar mistakes")}>
+                Fix spelling & grammar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onRewrite("Rewrite this to sound extremely professional and corporate")}>
+                Make it professional
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onRewrite("Translate this text to Spanish, output ONLY the translation.")}>
+                Translate to Spanish
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
       {isText && (

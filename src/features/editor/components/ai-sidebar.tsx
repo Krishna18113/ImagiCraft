@@ -6,6 +6,8 @@ import {
   Sparkles,
   Loader2,
   Wand2,
+  CheckCircle,
+  Circle,
 } from "lucide-react";
 
 import { ActiveTool, Editor } from "@/features/editor/types";
@@ -34,7 +36,7 @@ const IMAGE_STYLE_PRESETS = [
   { label: "Digital Art", suffix: ", digital art, vibrant colors, detailed illustration" },
   { label: "Watercolor", suffix: ", watercolor painting, soft brushstrokes, artistic" },
   { label: "3D Render", suffix: ", 3D render, cinema 4D, octane render, volumetric lighting" },
-  { label: "Minimal", suffix: ", minimalist design, clean, simple, white background" },
+  { label: "Minimal", suffix: ", minimalist flat design, soft pastel color palette, elegant" },
   { label: "Neon", suffix: ", neon glow, cyberpunk, dark background, vibrant neon colors" },
 ];
 
@@ -56,16 +58,45 @@ export const AiSidebar = ({
   const [tab, setTab] = useState<AiTab>("image");
   const [imagePrompt, setImagePrompt] = useState("");
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  
+  // Refactored to be GLOBAL across both tabs
+  const [sharedContext, setSharedContext] = useState("");
+  const [globalPurpose, setGlobalPurpose] = useState<string>("none");
+
+  const [imageComposition, setImageComposition] = useState<string>("none");
+  const [needsNegativeSpace, setNeedsNegativeSpace] = useState<boolean>(false);
+
   const [textPrompt, setTextPrompt] = useState("");
   const [textType, setTextType] = useState<TextType>("headline");
-  const [generatedText, setGeneratedText] = useState("");
+  const [generatedElements, setGeneratedElements] = useState<any[]>([]);
 
   const onSubmitImage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const fullPrompt = selectedStyle
-      ? imagePrompt + selectedStyle
-      : imagePrompt;
+    let enhancedPrompt = imagePrompt;
+    
+    // Inject global context
+    if (sharedContext.trim() !== "") {
+      enhancedPrompt = `Theme: ${sharedContext}. ` + enhancedPrompt;
+    }
+
+    if (imageComposition === "background") {
+      enhancedPrompt += ", poster background design, border frame layout";
+    } else if (imageComposition === "object") {
+      enhancedPrompt = "isolated object on white background, " + enhancedPrompt;
+    }
+
+    if (globalPurpose === "business") enhancedPrompt += ", corporate design";
+    if (globalPurpose === "project") enhancedPrompt += ", creative project";
+    if (globalPurpose === "workshop") enhancedPrompt += ", educational workshop";
+
+    if (needsNegativeSpace) {
+      enhancedPrompt += ", with open space in center for text overlay";
+    }
+
+    const fullPrompt = (selectedStyle
+      ? enhancedPrompt + selectedStyle
+      : enhancedPrompt);
 
     imageMutation.mutate({ prompt: fullPrompt }, {
       onSuccess: (response) => {
@@ -83,10 +114,18 @@ export const AiSidebar = ({
   const onSubmitText = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    textMutation.mutate({ prompt: textPrompt, type: textType }, {
+    let fullTextPrompt = textPrompt;
+    if (sharedContext.trim() !== "") {
+      fullTextPrompt = `Global Theme: ${sharedContext}. ` + fullTextPrompt;
+    }
+    if (globalPurpose !== "none") {
+      fullTextPrompt += `. Tailor the writing and colors for a ${globalPurpose} poster.`;
+    }
+
+    textMutation.mutate({ prompt: fullTextPrompt, type: textType }, {
       onSuccess: (response) => {
-        if ("data" in response) {
-          setGeneratedText(response.data);
+        if ("data" in response && Array.isArray(response.data)) {
+          setGeneratedElements(response.data);
           toast.success("Text generated!");
         }
       },
@@ -97,21 +136,30 @@ export const AiSidebar = ({
   };
 
   const addTextToCanvas = () => {
-    if (!generatedText) return;
+    if (!generatedElements.length) return;
 
-    const styleMap: Record<TextType, { fontSize: number; fontWeight: number }> = {
-      headline: { fontSize: 48, fontWeight: 700 },
-      tagline: { fontSize: 28, fontWeight: 500 },
-      body: { fontSize: 18, fontWeight: 400 },
-      custom: { fontSize: 24, fontWeight: 400 },
-    };
+    const workspace = editor?.getWorkspace();
+    const maxWidth = (workspace?.width || 800) * 0.8;
+    
+    // Auto-scale font sizes dynamically based on how massive the canvas is
+    const scaleFactor = (workspace?.width || 800) / 800;
 
-    const style = styleMap[textType];
-    editor?.addText(generatedText, {
-      fontSize: style.fontSize,
-      fontWeight: style.fontWeight,
+    generatedElements.forEach((el, index) => {
+      editor?.addText(el.content, {
+        fontSize: (el.fontSize || 32) * Math.max(1, scaleFactor * 0.8), // Scale up smoothly for big posters
+        fontWeight: el.fontWeight || 400,
+        fontFamily: el.fontFamily || "Arial",
+        textAlign: el.textAlign || "center",
+        fill: el.fill || "#000000",
+        width: maxWidth,
+        top: 100 + (index * (80 * scaleFactor)), // scale spatial offset too
+        left: workspace?.width ? workspace.width / 2 : 100,
+        originX: "center",
+        lineHeight: 1.2
+      });
     });
-    toast.success("Text added to canvas!");
+
+    toast.success("Text elements added to canvas!");
   };
 
   const onClose = () => {
@@ -131,6 +179,36 @@ export const AiSidebar = ({
         title="AI Studio"
         description="Generate images and text with AI"
       />
+
+      {/* Global Context Section */}
+      <div className="p-4 border-b bg-slate-50 space-y-3">
+        <p className="text-xs font-semibold text-slate-700">Global Project Theme</p>
+        <Textarea
+          placeholder="e.g. Gen AI and Safety 2026..."
+          value={sharedContext}
+          onChange={(e) => setSharedContext(e.target.value)}
+          className="text-xs min-h-[40px] resize-none pb-1 h-12"
+          rows={2}
+        />
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { id: "business", label: "Business" },
+            { id: "project", label: "Project" },
+            { id: "workshop", label: "Workshop" },
+          ].map((purp) => (
+            <button
+              key={purp.id}
+              onClick={() => setGlobalPurpose(globalPurpose === purp.id ? "none" : purp.id)}
+              className={cn(
+                "text-[10px] px-2.5 py-1 rounded-full border transition",
+                globalPurpose === purp.id ? "bg-blue-100 border-blue-600 text-blue-700" : "bg-white text-muted-foreground hover:bg-muted"
+              )}
+            >
+              For {purp.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Tab Switcher */}
       <div className="flex border-b px-4">
@@ -174,9 +252,47 @@ export const AiSidebar = ({
               onChange={(e) => setImagePrompt(e.target.value)}
             />
 
+            <div className="space-y-4 pb-4 border-b">
+              {/* Composition Type */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">What are you generating?</p>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { id: "background", label: "Background Design" },
+                    { id: "object", label: "Standalone Object" },
+                  ].map((comp) => (
+                    <button
+                      key={comp.id}
+                      type="button"
+                      onClick={() => setImageComposition(imageComposition === comp.id ? "none" : comp.id)}
+                      className={cn(
+                        "text-xs px-3 py-1.5 rounded-full border transition",
+                        imageComposition === comp.id ? "bg-blue-100 border-blue-600 text-blue-700" : "bg-white text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {comp.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Checkbox / Toggle for Space */}
+              <button
+                type="button"
+                onClick={() => setNeedsNegativeSpace(!needsNegativeSpace)}
+                className={cn(
+                  "w-full text-left text-xs px-3 py-2 rounded-md border flex items-center justify-between transition",
+                  needsNegativeSpace ? "bg-blue-50 border-blue-600 text-blue-800" : "bg-white text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <span>Leave blank space for text / margins</span>
+                {needsNegativeSpace ? <CheckCircle className="size-4 text-blue-600" /> : <Circle className="size-4" />}
+              </button>
+            </div>
+
             {/* Style Presets */}
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Style Presets</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Style Filter</p>
               <div className="grid grid-cols-2 gap-2">
                 {IMAGE_STYLE_PRESETS.map((preset) => (
                   <button
@@ -274,11 +390,20 @@ export const AiSidebar = ({
             </form>
 
             {/* Generated Text Preview */}
-            {generatedText && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Generated Text</p>
-                <div className="bg-gray-50 rounded-lg p-3 text-sm border">
-                  {generatedText}
+            {generatedElements.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground">Generated Elements</p>
+                <div className="bg-gray-50 rounded-lg p-3 text-sm border space-y-3">
+                  {generatedElements.map((el, i) => (
+                    <div key={i} className="border-b border-gray-200 last:border-0 pb-3 last:pb-0">
+                      <p style={{ color: el.fill, fontWeight: el.fontWeight, fontFamily: el.fontFamily }}>
+                        {el.content}
+                      </p>
+                      <p className="text-[10px] text-gray-400 font-mono mt-1">
+                        {el.fontFamily} • {el.fontSize}px • {el.fill}
+                      </p>
+                    </div>
+                  ))}
                 </div>
                 <Button
                   onClick={addTextToCanvas}

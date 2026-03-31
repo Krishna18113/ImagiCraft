@@ -35,11 +35,21 @@ export const RemoveBgSidebar = ({
   };
 
   const onClick = () => {
+    // Save the original image's position and scale before removing it
+    const originalLeft = selectedObject?.left || 0;
+    const originalTop = selectedObject?.top || 0;
+    const originalScaleX = selectedObject?.scaleX || 1;
+    const originalScaleY = selectedObject?.scaleY || 1;
 
     mutation.mutate({
       image: imageSrc,
     }, {
       onSuccess: ({ data }: any) => {
+        // Delete the original image first
+        if (selectedObject) {
+          editor?.canvas.remove(selectedObject);
+        }
+        // Add the new bg-removed image at the same position/scale
         editor?.addImage(data);
       },
     });
