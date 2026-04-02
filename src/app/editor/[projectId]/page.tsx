@@ -5,7 +5,10 @@ import { Loader, TriangleAlert } from "lucide-react";
 
 import { useGetProject } from "@/features/projects/api/use-get-project";
 
-import { Editor } from "@/features/editor/components/editor";
+import dynamic from "next/dynamic";
+
+const Editor = dynamic(() => import("@/features/editor/components/editor").then(m => m.Editor), { ssr: false });
+const DocumentEditor = dynamic(() => import("@/features/editor/components/document-editor").then(m => m.DocumentEditor), { ssr: false });
 import { Button } from "@/components/ui/button";
 
 interface EditorProjectIdPageProps {
@@ -61,7 +64,11 @@ const EditorProjectIdPage = ({
     );
   }
 
-  return <Editor initialData={data} />
+  if (data.projectType === "DOCUMENT") {
+    return <DocumentEditor initialData={data} />;
+  }
+
+  return <Editor initialData={data} />;
 };
  
 export default EditorProjectIdPage;
