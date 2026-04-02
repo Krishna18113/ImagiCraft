@@ -155,10 +155,10 @@ Modify the text accordingly. ONLY return the modified text string. Do NOT use ma
 
         const result = await response.json();
         let rewrittenText = result.choices?.[0]?.message?.content?.trim();
-        
+
         // Strip stray quotes
         rewrittenText = rewrittenText.replace(/^["'\u201c]+|["'\u201d]+$/g, '').trim();
-        
+
         return c.json({ data: rewrittenText });
       } catch (error: any) {
         console.error("AI Rewrite Error:", error.message || error);
@@ -196,7 +196,8 @@ Each object MUST have the following properties:
 - textAlign (string): Alignment ("left", "center", "right").
 
 INSTRUCTIONS:
-- If the user explicitly asks for multiple elements (like "title and subtitle"), generate exactly those elements intelligently with matching but distinct styles (e.g., big bold title, smaller lighter subtitle).
+- If the user explicitly asks for multiple elements (like "title and subtitle" or bullet points), generate exactly those elements.
+- For body text with bullet points, generate each bullet point as a separate element in the array with fontSize 24.
 - If the request is generic, just generate 1 element perfectly styled for the request.
 - Ensure colors look good together. Do NOT include markdown blocks (\`\`\`json). Just the raw JSON object.`;
 
@@ -216,7 +217,7 @@ INSTRUCTIONS:
                 { role: "system", content: systemPrompt },
                 { role: "user", content: `Text Type Requested: ${type === 'custom' ? 'Follow User Instructions' : type}.\nUser Prompt: ${prompt}` },
               ],
-              max_tokens: 400,
+              max_tokens: 800,
               temperature: 0.8,
             }),
           }
@@ -229,15 +230,29 @@ INSTRUCTIONS:
 
         const result = await response.json();
         let textContent = result.choices?.[0]?.message?.content?.trim();
-        
+
         // Strip markdown if Llama ignored the system prompt
-        if (textContent.startsWith("```")) {
+        if (textContent?.startsWith("```")) {
           textContent = textContent.replace(/^```json/g, "").replace(/^```/g, "").replace(/```$/g, "").trim();
         }
 
         const parsed = JSON.parse(textContent || '{"elements":[]}');
-        
-        return c.json({ data: parsed.elements || [] });
+        let elements = parsed.elements || [];
+
+        // Post-process bullets so they stay together in one textbox
+        if (/bullet|point|list/i.test(prompt) && elements.length > 1) {
+          const merged = elements.map((e: any) => "• " + e.content).join("\n");
+          elements = [{
+            content: merged,
+            fontSize: 24,
+            fontFamily: elements[0]?.fontFamily || "Arial",
+            fill: elements[0]?.fill || "#000000",
+            fontWeight: 400,
+            textAlign: "left"
+          }];
+        }
+
+        return c.json({ data: elements });
       } catch (error: any) {
         console.error("AI Text Generation Error:", error.message || error);
         return c.json(
