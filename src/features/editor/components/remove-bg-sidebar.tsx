@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { fabric } from "fabric";
 import { AlertTriangle } from "lucide-react";
 import { ActiveTool, Editor } from "@/features/editor/types";
 import { ToolSidebarClose } from "@/features/editor/components/tool-sidebar-close";
@@ -45,12 +46,27 @@ export const RemoveBgSidebar = ({
       image: imageSrc,
     }, {
       onSuccess: ({ data }: any) => {
-        // Delete the original image first
-        if (selectedObject) {
-          editor?.canvas.remove(selectedObject);
-        }
-        // Add the new bg-removed image at the same position/scale
-        editor?.addImage(data);
+        fabric.Image.fromURL(
+          data,
+          (image) => {
+            image.set({
+              left: originalLeft,
+              top: originalTop,
+              scaleX: originalScaleX,
+              scaleY: originalScaleY,
+            });
+
+            // Delete the original image first
+            if (selectedObject) {
+              editor?.canvas.remove(selectedObject);
+            }
+
+            editor?.canvas.add(image);
+            editor?.canvas.setActiveObject(image);
+            editor?.canvas.renderAll();
+          },
+          { crossOrigin: "anonymous" }
+        );
       },
     });
   };
