@@ -474,7 +474,7 @@ export const DocumentEditor = ({ initialData }: DocumentEditorProps) => {
         </div>
         <div className="flex items-center gap-x-2">
            <Type className="size-3" />
-           Press '?' with Shift to open AI Assistant
+           Press &apos;?&apos; with Shift to open AI Assistant
         </div>
       </footer>
     </div>
