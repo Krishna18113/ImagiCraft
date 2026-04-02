@@ -19,7 +19,8 @@ import {
   Trash,
   SquareSplitHorizontal,
   Copy,
-  Sparkles
+  Sparkles,
+  List
 } from "lucide-react";
 
 import {
@@ -189,6 +190,25 @@ export const Toolbar = ({
       ...current,
       fontUnderline: newValue,
     }));
+  };
+
+  const toggleBullets = () => {
+    if (!selectedObject || !(selectedObject as any).text) return;
+    const currentText = (selectedObject as any).text;
+    const lines = currentText.split("\n");
+    const hasBullets = lines.every((line: string) => line.trim().startsWith("• "));
+    
+    let newText = "";
+    if (hasBullets) {
+      // Remove bullets
+      newText = lines.map((line: string) => line.replace(/^•\s*/, "")).join("\n");
+    } else {
+      // Add bullets
+      newText = lines.map((line: string) => `• ${line}`).join("\n");
+    }
+    
+    (selectedObject as any).set({ text: newText });
+    editor?.canvas.renderAll();
   };
 
   if (editor?.selectedObjects.length === 0) {
@@ -424,6 +444,19 @@ export const Toolbar = ({
             value={properties.fontSize}
             onChange={onChangeFontSize}
          />
+        </div>
+      )}
+      {isText && (
+        <div className="flex items-center h-full justify-center">
+          <Hint label="Bullets" side="bottom" sideOffset={5}>
+            <Button
+              onClick={toggleBullets}
+              size="icon"
+              variant="ghost"
+            >
+              <List className="size-4" />
+            </Button>
+          </Hint>
         </div>
       )}
       {isImage && (

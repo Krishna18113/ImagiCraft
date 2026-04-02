@@ -75,8 +75,7 @@ const app = new Hono()
     async (c) => {
       const { prompt } = c.req.valid("json");
 
-      // Always prevent the model from rendering text into the image
-      const cleanedPrompt = prompt + ", no text, no words, no letters";
+      const cleanedPrompt = prompt;
 
       try {
         const response = await fetch(
