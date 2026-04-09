@@ -22,7 +22,20 @@ const app = new Hono()
       const { page, limit } = c.req.valid("query");
 
       const data = await db
-        .select()
+        .select({
+          id: projects.id,
+          name: projects.name,
+          width: projects.width,
+          height: projects.height,
+          thumbnailUrl: projects.thumbnailUrl,
+          isTemplate: projects.isTemplate,
+          isPro: projects.isPro,
+          projectType: projects.projectType,
+          createdAt: projects.createdAt,
+          updatedAt: projects.updatedAt,
+          userId: projects.userId,
+          json: projects.json,
+        })
         .from(projects)
         .where(eq(projects.isTemplate, true))
         .limit(limit)
@@ -127,7 +140,19 @@ const app = new Hono()
       }
 
       const data = await db
-        .select()
+        .select({
+          id: projects.id,
+          name: projects.name,
+          width: projects.width,
+          height: projects.height,
+          thumbnailUrl: projects.thumbnailUrl,
+          isTemplate: projects.isTemplate,
+          isPro: projects.isPro,
+          projectType: projects.projectType,
+          createdAt: projects.createdAt,
+          updatedAt: projects.updatedAt,
+          userId: projects.userId,
+        })
         .from(projects)
         .where(eq(projects.userId, auth.token.id))
         .limit(limit)

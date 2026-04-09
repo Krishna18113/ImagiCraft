@@ -25,7 +25,7 @@ import { usePrompt } from "@/hooks/use-prompt";
 const categories = [
     { id: "poster", label: "Poster", icon: LayoutPanelTop, color: "text-purple-500", bgColor: "bg-purple-100", width: 2480, height: 3508, projectType: "POSTER" as const },
     { id: "presentation", label: "Presentation", icon: Presentation, color: "text-orange-500", bgColor: "bg-orange-100", width: 1920, height: 1080, projectType: "PRESENTATION" as const },
-    { id: "doc", label: "Doc", icon: FileText, color: "text-teal-500", bgColor: "bg-teal-100", width: 800, height: 1131, projectType: "POSTER" as const },
+    { id: "doc", label: "Doc", icon: FileText, color: "text-teal-500", bgColor: "bg-teal-100", width: 800, height: 1131, projectType: "DOCUMENT" as const },
     { id: "whiteboard", label: "Whiteboard", icon: Monitor, color: "text-green-500", bgColor: "bg-green-100", width: 2000, height: 2000, projectType: "IMAGE" as const },
     // { id: "website", label: "Website", icon: Globe, color: "text-blue-500", bgColor: "bg-blue-100", width: 1440, height: 1024, projectType: "IMAGE" as const },
     // { id: "email", label: "Email", icon: Mail, color: "text-indigo-500", bgColor: "bg-indigo-100", width: 600, height: 1200, projectType: "POSTER" as const },
