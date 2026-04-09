@@ -87,12 +87,26 @@ export const PresentModal = ({ editor }: PresentModalProps) => {
                 canvas.loadFromJSON(workspaceJSON, () => {
                     const workspace = canvas.getObjects().find((obj) => obj.name === "clip");
                     if (workspace) {
-                        // Center the workspace on the screen
+                        canvas.setViewportTransform(fabric.iMatrix.concat());
                         const center = canvas.getCenter();
                         canvas.zoomToPoint(new fabric.Point(center.left, center.top), scale);
-                        // @ts-ignore
-                        canvas._centerObject(workspace, center);
-                        canvas.renderAll();
+
+                        const workspaceCenter = workspace.getCenterPoint();
+                        const viewportTransform = canvas.viewportTransform;
+
+                        const width = canvas.getWidth();
+                        const height = canvas.getHeight();
+
+                        if (width !== undefined && height !== undefined && viewportTransform) {
+                            viewportTransform[4] = width / 2 - workspaceCenter.x * viewportTransform[0];
+                            viewportTransform[5] = height / 2 - workspaceCenter.y * viewportTransform[3];
+                            canvas.setViewportTransform(viewportTransform);
+                        }
+
+                        workspace.clone((cloned: fabric.Rect) => {
+                            canvas.clipPath = cloned;
+                            canvas.requestRenderAll();
+                        });
                     }
                 });
             }
