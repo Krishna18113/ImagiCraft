@@ -91,7 +91,160 @@ body {
   overflow: hidden !important;
 }
 
-/* Page Break styling for Docs */
+/* ═══════════════════════════════════════════════════════════════════════
+   DOCUMENT EDITOR — FUTURISTIC STYLES
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Image Float / Text Wrapping ──────────────────────────────────────── */
+.prose .doc-image[data-float="left"] {
+  float: left;
+  margin: 0.75rem 1.5rem 0.75rem 0;
+  shape-outside: margin-box;
+  border-radius: 8px;
+  max-width: 50%;
+}
+
+.prose .doc-image[data-float="right"] {
+  float: right;
+  margin: 0.75rem 0 0.75rem 1.5rem;
+  shape-outside: margin-box;
+  border-radius: 8px;
+  max-width: 50%;
+}
+
+.prose .doc-image {
+  border-radius: 8px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+  max-width: 100%;
+  height: auto;
+}
+
+.prose .doc-image:hover {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+.prose .doc-image.ProseMirror-selectednode {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.6);
+  outline: none;
+}
+
+/* ── Table Styles ────────────────────────────────────────────────────── */
+.prose table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.prose th {
+  background-color: #f8fafc;
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.prose th,
+.prose td {
+  min-width: 80px;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  position: relative;
+  vertical-align: top;
+  font-size: 0.9rem;
+}
+
+.prose td > * + *,
+.prose th > * + * {
+  margin-top: 0;
+}
+
+/* Selected cell highlight */
+.prose .selectedCell::after {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(99, 102, 241, 0.08);
+  pointer-events: none;
+}
+
+/* Column resize handle */
+.prose .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: #818cf8;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.prose .tableWrapper {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+/* ── Highlight / Mark Styles ─────────────────────────────────────────── */
+.prose mark {
+  border-radius: 0.2em;
+  padding: 0.1em 0.2em;
+  box-decoration-break: clone;
+}
+
+/* ── Task List Styles ────────────────────────────────────────────────── */
+.prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.prose ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.prose ul[data-type="taskList"] li label {
+  margin-top: 0.25rem;
+}
+
+.prose ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  text-decoration: line-through;
+  color: #94a3b8;
+}
+
+/* ── Page Break Styles (Screen) ──────────────────────────────────────── */
+@media screen {
+  .prose hr {
+    border: 0;
+    border-top: 2px dashed #cbd5e1;
+    margin: 2.5rem 0;
+    position: relative;
+  }
+  .prose hr::after {
+    content: "Page Break";
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 0 12px;
+    color: #94a3b8;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 500;
+  }
+}
+
+/* ── Page Break Styles (Print) ───────────────────────────────────────── */
 @media print {
   hr {
     break-after: page;
@@ -101,26 +254,25 @@ body {
     padding: 0;
     visibility: hidden;
   }
+
+  /* Hide UI elements during print */
+  .print\\:hidden {
+    display: none !important;
+  }
 }
 
-@media screen {
-  .prose hr {
-    border: 0;
-    border-top: 2px dashed #cbd5e1;
-    margin: 2rem 0;
-    position: relative;
-  }
-  .prose hr::after {
-    content: "Page Break";
-    position: absolute;
-    top: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #f8f9fa;
-    padding: 0 10px;
-    color: #94a3b8;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
+/* ── Balanced Heading Animation (subtle) ─────────────────────────────── */
+.prose h1,
+.prose h2,
+.prose h3 {
+  text-wrap: balance;
+}
+
+/* ── Placeholder Styling ─────────────────────────────────────────────── */
+.tiptap p.is-editor-empty:first-child::before {
+  color: #adb5bd;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
 }

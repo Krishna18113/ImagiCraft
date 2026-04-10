@@ -82,9 +82,64 @@ const app = new Hono()
     async (c) => {
       const { prompt } = c.req.valid("json");
 
-      const cleanedPrompt = prompt;
-
       try {
+        // ── Step 1: Smart-rephrase the prompt via LLM ──────────────────────
+        // This converts vague/person-name prompts into vivid visual descriptions
+        // that image models can actually generate well.
+        let imagePrompt = prompt;
+
+        try {
+          const rephraseRes = await fetch(
+            "https://router.huggingface.co/novita/v3/openai/chat/completions",
+            {
+              headers: {
+                Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              method: "POST",
+              body: JSON.stringify({
+                model: "meta-llama/llama-3.1-8b-instruct",
+                messages: [
+                  {
+                    role: "system",
+                    content: `You are a prompt engineer for AI image generation models like FLUX and Stable Diffusion.
+
+Your job: Take the user's request and rewrite it as a detailed, vivid visual description optimized for image generation.
+
+RULES:
+- NEVER use real person names (politicians, celebrities, etc). Instead, describe their appearance, attire, setting, and pose in detail.
+- If the user mentions a real person, describe what they LOOK LIKE (physical features, clothing, expression, setting) without naming them.
+- Add artistic details: lighting, camera angle, style, mood, colors.
+- Keep it under 80 words.
+- Output ONLY the rephrased prompt. No quotes, no explanation, no markdown.
+
+Examples:
+- "prime minister modi" → "A distinguished Indian man with a white beard, wearing a cream-colored kurta and vest, giving a powerful speech at a massive outdoor rally with Indian flags, dramatic sunset lighting, photorealistic, 8k"
+- "elon musk" → "A tall businessman with short brown hair in a dark suit, standing in front of a SpaceX rocket on a launch pad, cinematic lighting, photorealistic"
+- "A cat on a table" → "A fluffy orange tabby cat sitting on a polished wooden kitchen table, warm afternoon sunlight streaming through a window, bokeh background, photorealistic, 4k"`,
+                  },
+                  { role: "user", content: prompt },
+                ],
+                max_tokens: 150,
+                temperature: 0.7,
+              }),
+            }
+          );
+
+          if (rephraseRes.ok) {
+            const rephraseResult = await rephraseRes.json();
+            const rephrased = rephraseResult.choices?.[0]?.message?.content?.trim();
+            if (rephrased && rephrased.length > 10) {
+              imagePrompt = rephrased;
+              console.log(`[Image Gen] Rephrased: "${prompt}" → "${imagePrompt}"`);
+            }
+          }
+        } catch (rephraseErr) {
+          // If rephrase fails, just use the original prompt — no big deal
+          console.warn("Prompt rephrase failed, using original:", rephraseErr);
+        }
+
+        // ── Step 2: Generate image with FLUX.1-schnell ─────────────────────
         const response = await fetch(
           "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
           {
@@ -93,7 +148,15 @@ const app = new Hono()
               "Content-Type": "application/json",
             },
             method: "POST",
-            body: JSON.stringify({ inputs: cleanedPrompt }),
+            body: JSON.stringify({
+              inputs: imagePrompt,
+              parameters: {
+                num_inference_steps: 4,
+                guidance_scale: 3.5,
+                width: 1024,
+                height: 1024,
+              },
+            }),
           }
         );
 
