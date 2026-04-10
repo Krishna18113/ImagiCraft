@@ -14,9 +14,9 @@ export const Logo = () => {
     <Link href="/">
       <div className="flex items-center gap-x-2 hover:opacity-75 transition h-[68px] px-4">
         <div className="size-8 relative">
-          <Image src="/logo.svg" alt="The Canvas" fill />
+          <Image src="/logo.svg" alt="ImagiCraft" fill />
         </div>
-        <h1 className={cn(font.className, "text-xl font-bold")}>The Canvas</h1>
+        <h1 className={cn(font.className, "text-xl font-bold")}>ImagiCraft</h1>
       </div>
     </Link>
   );

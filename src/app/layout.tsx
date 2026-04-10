@@ -13,7 +13,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "The Canvas",
+  title: "ImagiCraft",
   description: "Build Something Great!",
 };
 
