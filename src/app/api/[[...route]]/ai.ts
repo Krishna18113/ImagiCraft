@@ -17,16 +17,23 @@ const app = new Hono()
     async (c) => {
       try {
         const { image } = c.req.valid("json");
-        const base64Data = image.replace(/^data:image\/[a-zA-Z0-9+\.-]+;base64,/, "");
 
-        // Convert base64 to Blob instead of Buffer for Edge compatibility
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        let imageBlob: Blob;
+
+        if (image.startsWith("data:")) {
+          // Handle base64 data URL
+          const base64Data = image.replace(/^data:image\/[a-zA-Z0-9+\.-]+;base64,/, "");
+          const buffer = Buffer.from(base64Data, "base64");
+          imageBlob = new Blob([new Uint8Array(buffer)], { type: "image/png" });
+        } else {
+          // Handle regular URL — fetch the image bytes first
+          const imgResponse = await fetch(image);
+          if (!imgResponse.ok) {
+            throw new Error(`Failed to fetch image from URL: ${imgResponse.status}`);
+          }
+          const imgBuffer = await imgResponse.arrayBuffer();
+          imageBlob = new Blob([imgBuffer], { type: "image/png" });
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const imageBlob = new Blob([byteArray], { type: "image/png" });
 
         const formData = new FormData();
         formData.append("image_file", imageBlob, "image.png");
